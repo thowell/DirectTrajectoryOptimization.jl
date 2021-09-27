@@ -1,3 +1,5 @@
+using LinearAlgebra 
+
 # dimensions
 T = 26
 nx = 2

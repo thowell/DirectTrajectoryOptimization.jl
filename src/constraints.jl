@@ -121,7 +121,7 @@ end
 
 ConstraintSet() = ConstraintSet([Bound()], [StageConstraint()]) 
 ConstraintSet(stage::StageConstraints{T}) where T = ConstraintSet([Bound()], stage) 
-ConstraintSet(bounds::Bounds{T}) = ConstraintSet(bounds, [StageConstraint()]) 
+ConstraintSet(bounds::Bounds{T}) where T = ConstraintSet(bounds, [StageConstraint()]) 
 
 num_con(cons::ConstraintSet{T}) where T = sum([con.nc * length(con.idx) for con in cons.stage])
 num_jac(cons::ConstraintSet{T}) where T = sum([con.nj * length(con.idx) for con in cons.stage])
