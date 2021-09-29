@@ -4,7 +4,6 @@ using LinearAlgebra
 using StaticArrays
 using SparseArrays
 using Symbolics, IfElse
-using ForwardDiff
 using BenchmarkTools, InteractiveUtils
 using MathOptInterface
 const MOI = MathOptInterface

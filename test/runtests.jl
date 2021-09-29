@@ -1,7 +1,9 @@
 using Test
 using BenchmarkTools
 using ForwardDiff
+using LinearAlgebra
+using DirectTrajectoryOptimization
 
-include(joinpath(pwd(), "test/objective.jl"))
-include(joinpath(pwd(), "test/dynamics.jl"))
-include(joinpath(pwd(), "test/constraints.jl"))
+include("objective.jl")
+include("dynamics.jl")
+include("constraints.jl")
