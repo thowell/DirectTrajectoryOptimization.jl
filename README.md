@@ -1,4 +1,6 @@
 # DirectTrajectoryOptimization.jl
+[![codecov](https://codecov.io/gh/thowell/DirectTrajectoryOptimization.jl/branch/main/graph/badge.svg?token=821EI7HJEL)](https://codecov.io/gh/thowell/DirectTrajectoryOptimization.jl)
+
 This package solves constrained trajectory optimization problems: 
 
 ```
