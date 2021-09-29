@@ -18,3 +18,10 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 Symbolics = "0.1.29"
+StaticArrays = "1.2" 
+Parameters = "0.12" 
+MathOptInterface = "0.10" 
+JLD2 = "0.4" 
+Ipopt = "0.8" 
+IfElse = "0.1" 
+julia = "1.6"

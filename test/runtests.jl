@@ -7,3 +7,4 @@ using DirectTrajectoryOptimization
 include("objective.jl")
 include("dynamics.jl")
 include("constraints.jl")
+include("solve.jl")
