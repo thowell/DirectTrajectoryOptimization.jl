@@ -40,7 +40,7 @@
     dt.jac(dt.jac_cache, x1, x1, u1, w1) 
     jac_dense = zeros(dt.ny, dt.nx + dt.nu + dt.ny)
     for (i, ji) in enumerate(dt.jac_cache)
-        jac_dense[dt.sparsity[1][i], dt.sparsity[2][i]] = ji
+        jac_dense[dt.sp_jac[1][i], dt.sp_jac[2][i]] = ji
     end
     jac_fd = ForwardDiff.jacobian(a -> euler_implicit(a[nx + nu .+ (1:nx)], a[1:nx], a[nx .+ (1:nu)], w1), [x1; u1; x1])
     @test norm(jac_dense - jac_fd) < 1.0e-8
@@ -50,7 +50,7 @@
     info = @benchmark DirectTrajectoryOptimization.eval_con!($d, $idx_dyn, $dyn, $X, $U, $W) 
 
     DirectTrajectoryOptimization.eval_jac!(j, idx_jac, dyn, X, U, W) 
-    s = DirectTrajectoryOptimization.sparsity(dyn, dim_x, dim_u)
+    s = DirectTrajectoryOptimization.sparsity_jacobian(dyn, dim_x, dim_u)
     jac_dense = zeros(DirectTrajectoryOptimization.num_con(dyn), DirectTrajectoryOptimization.num_xuy(dyn))
     for (i, ji) in enumerate(j)
         jac_dense[s[i][1], s[i][2]] = ji

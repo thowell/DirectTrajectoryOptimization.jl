@@ -28,9 +28,9 @@ end
 
 MOI.eval_hessian_lagrangian(p::MOI.AbstractNLPEvaluator, H, x, σ, μ) = nothing
 
-MOI.features_available(p::MOI.AbstractNLPEvaluator) = p.hessian_lagrangian ? [:Grad, :Jac, :Hess] : [:Grad, :Jac]
+MOI.features_available(p::MOI.AbstractNLPEvaluator) = p.hess_lag ? [:Grad, :Jac, :Hess] : [:Grad, :Jac]
 MOI.initialize(p::MOI.AbstractNLPEvaluator, features) = nothing
-MOI.jacobian_structure(p::MOI.AbstractNLPEvaluator) = p.sparsity_jacobian
-MOI.hessian_lagrangian_structure(p::MOI.AbstractNLPEvaluator) = p.sparsity_hessian_lagrangian
+MOI.jacobian_structure(p::MOI.AbstractNLPEvaluator) = p.sp_jac
+MOI.hessian_lagrangian_structure(p::MOI.AbstractNLPEvaluator) = p.sp_hess_lag
 
 

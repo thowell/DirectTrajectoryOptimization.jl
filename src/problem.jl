@@ -42,9 +42,9 @@ struct Problem{T} <: MOI.AbstractNLPEvaluator
     var_bnds::Vector{Vector{T}}
     con_bnds::Vector{Vector{T}}
     con_idx::TrajectoryOptimizationIndices
-    sparsity_jacobian
-    sparsity_hessian_lagrangian
-    hessian_lagrangian::Bool 
+    sp_jac
+    sp_hess_lag
+    hess_lag::Bool 
 end
 
 function primal_bounds(bnds::Bounds{T}, nz::Int, x_idx::Vector{Vector{Int}}, u_idx::Vector{Vector{Int}}) where T 
@@ -102,8 +102,8 @@ function Problem(trajopt::TrajectoryOptimizationProblem)
     cl, cu = constraint_bounds(trajopt.model.dyn, trajopt.con.stage, nc, con_idx) 
 
     # constraint Jacobian sparsity
-    sp_dyn = sparsity(trajopt.model.dyn, trajopt.model.dim.x, trajopt.model.dim.u, row_shift=0)
-    sp_con = sparsity(trajopt.con.stage, trajopt.model.dim.x, trajopt.model.dim.u, row_shift=nc_dyn)
+    sp_dyn = sparsity_jacobian(trajopt.model.dyn, trajopt.model.dim.x, trajopt.model.dim.u, row_shift=0)
+    sp_con = sparsity_jacobian(trajopt.con.stage, trajopt.model.dim.x, trajopt.model.dim.u, row_shift=nc_dyn)
     sp_jac = collect([sp_dyn..., sp_con...]) 
 
     # Hessian of Lagrangian sparsity

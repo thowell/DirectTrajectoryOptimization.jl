@@ -18,20 +18,24 @@ const Bounds{T} = Vector{Bound{T}}
 struct StageConstraint{T} <: Constraint
     val 
     jac 
+    hess
     nx::Int 
     nu::Int 
     nc::Int
     nj::Int 
-    sparsity::Vector{Vector{Int}}
+    nh::Int
+    sp_jac::Vector{Vector{Int}}
+    sp_hess::Vector{Vector{Int}}
     val_cache::Vector{T} 
     jac_cache::Vector{T}
+    hess_cache::Vector{T}
     type::Symbol
     idx::Vector{Int}
 end
 
 StageConstraints{T} = Vector{StageConstraint{T}} where T
 
-function StageConstraint(f::Function, nx::Int, nu::Int, idx::Vector{Int}, type::Symbol)
+function StageConstraint(f::Function, nx::Int, nu::Int, idx::Vector{Int}, type::Symbol; eval_hess=false)
     #TODO: option to load/save methods
     @variables x[1:nx], u[1:nu]
     val = f(x, u)
@@ -40,13 +44,16 @@ function StageConstraint(f::Function, nx::Int, nu::Int, idx::Vector{Int}, type::
     jac_func = eval(Symbolics.build_function(jac.nzval, x, u)[2])
     nc = length(val) 
     nj = length(jac.nzval)
-    sparsity = [findnz(jac)[1:2]...]
-    return StageConstraint(val_func, jac_func, 
-        nx, nu, nc, nj, sparsity, zeros(nc), zeros(nj), type, idx)
+    sp_jac = [findnz(jac)[1:2]...]
+    hess_func = eval_hess ? Expr(:null) : Expr(:null) 
+    sp_hess = eval_hess ? [Int[]] : [Int[]]
+    nh = eval_hess ? 0 : 0
+    return StageConstraint(val_func, jac_func, hess_func,
+        nx, nu, nc, nj, nh, sp_jac, sp_hess, zeros(nc), zeros(nj), zeros(nh), type, idx)
 end
 
-function StageConstraint() 
-    return StageConstraint((c, x, u) -> nothing, (j, x, u) -> nothing, 0, 0, 0, 0, [Int[]], Float64[], Float64[], :empty, Int[])
+function StageConstraint()
+    return StageConstraint((c, x, u) -> nothing, (j, x, u) -> nothing, (h, x, u) -> nothing, 0, 0, 0, 0, 0, [Int[]], [Int[]], Float64[], Float64[], Float64[], :empty, Int[])
 end
 
 function eval_con!(c, idx, cons::StageConstraints{T}, x, u) where T
@@ -75,14 +82,14 @@ function eval_jac!(j, idx, cons::StageConstraints{T}, x, u) where T
     end
 end
 
-function sparsity(cons::StageConstraints{T}, nx::Vector{Int}, nu::Vector{Int}; row_shift=0) where T
+function sparsity_jacobian(cons::StageConstraints{T}, nx::Vector{Int}, nu::Vector{Int}; row_shift=0) where T
     row = Int[]
     col = Int[]
     for con in cons
         for t in con.idx
             col_shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
-            push!(row, (con.sparsity[1] .+ row_shift)...) 
-            push!(col, (con.sparsity[2] .+ col_shift)...) 
+            push!(row, (con.sp_jac[1] .+ row_shift)...) 
+            push!(col, (con.sp_jac[2] .+ col_shift)...) 
             row_shift += con.nc
         end
     end

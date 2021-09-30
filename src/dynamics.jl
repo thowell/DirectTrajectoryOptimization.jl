@@ -1,27 +1,36 @@
 struct Dynamics{T} <: Constraint
     val 
     jac
+    hess
     ny::Int 
     nx::Int 
     nu::Int
     nw::Int
     nj::Int
-    sparsity::Vector{Vector{Int}}
+    nh::Int
+    sp_jac::Vector{Vector{Int}}
+    sp_hess::Vector{Vector{Int}}
     val_cache::Vector{T} 
     jac_cache::Vector{T}
+    hess_cache::Vector{T}
 end
 
-function Dynamics(f::Function, ny::Int, nx::Int, nu::Int; nw::Int=0)
+function Dynamics(f::Function, ny::Int, nx::Int, nu::Int; nw::Int=0, eval_hess=false)
     #TODO: option to load/save methods
     @variables y[1:ny], x[1:nx], u[1:nu], w[1:nw] 
     val = f(y, x, u, w) 
     jac = Symbolics.sparsejacobian(val, [x; u; y]);
     val_func = eval(Symbolics.build_function(val, y, x, u, w)[2]);
-    jac_fun = eval(Symbolics.build_function(jac.nzval, y, x, u, w)[2]);
+    jac_func = eval(Symbolics.build_function(jac.nzval, y, x, u, w)[2]);
     nj = length(jac.nzval)
-    sparsity = [findnz(jac)[1:2]...]
-    return Dynamics(val_func, jac_fun, ny, nx, nu, nw, nj, 
-        sparsity, zeros(ny), zeros(nj))
+    sp_jac = [findnz(jac)[1:2]...]
+
+    hess_func = eval_hess ? Expr(:null) : Expr(:null) 
+    sp_hess = eval_hess ? [Int[]] : [Int[]]
+    nh = eval_hess ? 0 : 0
+  
+    return Dynamics(val_func, jac_func, hess_func, ny, nx, nu, nw, nj, nh,
+        sp_jac, sp_hess, zeros(ny), zeros(nj), zeros(nh))
 end
 
 function eval_con!(c, idx, cons::Vector{Dynamics{T}}, x, u, w) where T
@@ -42,13 +51,13 @@ function eval_jac!(j, idx, cons::Vector{Dynamics{T}}, x, u, w) where T
     end
 end
 
-function sparsity(cons::Vector{Dynamics{T}}, nx::Vector{Int}, nu::Vector{Int}; row_shift=0) where T
+function sparsity_jacobian(cons::Vector{Dynamics{T}}, nx::Vector{Int}, nu::Vector{Int}; row_shift=0) where T
     row = Int[]
     col = Int[]
     for (t, con) in enumerate(cons) 
         col_shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
-        push!(row, (con.sparsity[1] .+ row_shift)...) 
-        push!(col, (con.sparsity[2] .+ col_shift)...) 
+        push!(row, (con.sp_jac[1] .+ row_shift)...) 
+        push!(col, (con.sp_jac[2] .+ col_shift)...) 
         row_shift += con.ny
     end
     return collect(zip(row, col))

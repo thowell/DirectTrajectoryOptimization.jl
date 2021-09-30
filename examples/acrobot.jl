@@ -1,5 +1,6 @@
 using DirectTrajectoryOptimization 
 using LinearAlgebra
+using BenchmarkTools
 
 # horizon 
 T = 101 
@@ -83,7 +84,7 @@ function midpoint_implicit(y, x, u, w)
     y - (x + h * acrobot(0.5 * (x + y), u, w))
 end
 
-dt = Dynamics(midpoint_implicit, nx, nx, nu, nw=nw);
+dt = Dynamics(midpoint_implicit, nx, nx, nu, nw=nw)
 dyn = [dt for t = 1:T-1] 
 model = DynamicsModel(dyn)
 
@@ -106,7 +107,8 @@ obj = [ct, cT]
 # constraints
 x_init = Bound(nx, nu, [1], xl=x1, xu=x1)
 x_goal = Bound(nx, 0, [T], xl=xT, xu=xT)
-cons = ConstraintSet([x_init, x_goal], [StageConstraint()])
+u_limits = Bound(nx, nu, [t for t = 1:T-1], ul=-4.0 * ones(nu), uu=4.0 * ones(nu))
+cons = ConstraintSet([x_init, x_goal, u_limits], [StageConstraint()])
 
 # problem 
 trajopt = TrajectoryOptimizationProblem(obj, model, cons)
@@ -120,7 +122,8 @@ end
 initialize!(s, z0)
 
 # solve
-solve!(s)
+@time solve!(s)
+@benchmark solve!($s)
 
 # solution
 @show trajopt.x[1]

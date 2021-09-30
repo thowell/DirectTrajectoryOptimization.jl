@@ -33,7 +33,7 @@
     dct = [-I zeros(nx, nu); I zeros(nx, nu)]
     dcT = Diagonal(ones(nx))
     dc = cat([dct for t = 1:T-1]..., dcT, dims=(1,2))
-    sp = DirectTrajectoryOptimization.sparsity(cons, dim_x, dim_u) 
+    sp = DirectTrajectoryOptimization.sparsity_jacobian(cons, dim_x, dim_u) 
     j_dense = zeros(nc, sum(dim_x) + sum(dim_u)) 
     for (i, v) in enumerate(sp)
         j_dense[v[1], v[2]] = j[i]
