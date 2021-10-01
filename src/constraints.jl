@@ -45,9 +45,18 @@ function StageConstraint(f::Function, nx::Int, nu::Int, idx::Vector{Int}, type::
     nc = length(val) 
     nj = length(jac.nzval)
     sp_jac = [findnz(jac)[1:2]...]
-    hess_func = eval_hess ? Expr(:null) : Expr(:null) 
-    sp_hess = eval_hess ? [Int[]] : [Int[]]
-    nh = eval_hess ? 0 : 0
+    if eval_hess
+        @variables λ[1:nc]
+        lag_con = dot(λ, val) 
+        hess = Symbolics.sparsehessian(lag_con, [x; u])
+        hess_func = eval(Symbolics.build_function(hess.nzval, x, u, λ)[2])
+        sp_hess = [findnz(hess)[1:2]...]
+        nh = length(hess.nzval)
+    else 
+        hess_func = Expr(:null) 
+        sp_hess = [Int[]]
+        nh = 0
+    end
     return StageConstraint(val_func, jac_func, hess_func,
         nx, nu, nc, nj, nh, sp_jac, sp_hess, zeros(nc), zeros(nj), zeros(nh), type, idx)
 end
@@ -57,7 +66,6 @@ function StageConstraint()
 end
 
 function eval_con!(c, idx, cons::StageConstraints{T}, x, u) where T
-    fill!(c, 0.0)
     i = 1
     for con in cons
         for t in con.idx
@@ -70,13 +78,24 @@ function eval_con!(c, idx, cons::StageConstraints{T}, x, u) where T
 end
 
 function eval_jac!(j, idx, cons::StageConstraints{T}, x, u) where T
-    fill!(j, 0.0)
     i = 1
     for con in cons
         for t in con.idx
             con.jac(con.jac_cache, x[t], u[t])
             @views j[idx[i]] .= con.jac_cache
             fill!(con.jac_cache, 0.0) # TODO: confirm this is necessary
+            i += 1
+        end
+    end
+end
+
+function eval_hess_lag!(h, idx, cons::StageConstraints{T}, x, u, λ) where T
+    i = 1
+    for con in cons
+        for t in con.idx
+            con.hess(con.hess_cache, x[t], u[t], λ[t])
+            # @views h[idx[i]] .= con.hess_cache
+            fill!(con.hess_cache, 0.0) # TODO: confirm this is necessary
             i += 1
         end
     end
@@ -91,6 +110,21 @@ function sparsity_jacobian(cons::StageConstraints{T}, nx::Vector{Int}, nu::Vecto
             push!(row, (con.sp_jac[1] .+ row_shift)...) 
             push!(col, (con.sp_jac[2] .+ col_shift)...) 
             row_shift += con.nc
+        end
+    end
+    return collect(zip(row, col))
+end
+
+function sparsity_hessian(cons::StageConstraints{T}, nx::Vector{Int}, nu::Vector{Int}) where T
+    row = Int[]
+    col = Int[]
+    for con in cons
+        if !isempty(con.sp_hess[1])
+            for t in con.idx
+                shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+                push!(row, (con.sp_hess[1] .+ shift)...) 
+                push!(col, (con.sp_hess[2] .+ shift)...) 
+            end
         end
     end
     return collect(zip(row, col))
@@ -117,6 +151,24 @@ function jacobian_indices(cons::StageConstraints{T}; shift=0) where T
             push!(idx, collect(shift .+ (1:con.nj)))
             shift += con.nj
         end 
+    end
+    return idx
+end
+
+function hessian_indices(cons::StageConstraints{T}, key::Vector{Tuple{Int,Int}}, nx::Vector{Int}, nu::Vector{Int}) where T
+    idx = Vector{Int}[]
+    for con in cons 
+        if !isempty(con.sp_hess[1])
+            for t in con.idx
+                row = Int[]
+                col = Int[]
+                shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+                push!(row, (con.sp_hess[1] .+ shift)...) 
+                push!(col, (con.sp_hess[2] .+ shift)...) 
+                rc = collect(zip(row, col))
+                push!(idx, [findfirst(x -> x == i, key) for i in rc])
+            end
+        end
     end
     return idx
 end

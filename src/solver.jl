@@ -6,8 +6,8 @@ struct Solver{T}
     z::Vector{MOI.VariableIndex}
 end
 
-function Solver(trajopt::TrajectoryOptimizationProblem; options=nothing) 
-    p = Problem(trajopt) 
+function Solver(trajopt::TrajectoryOptimizationProblem; eval_hess=false, options=nothing) 
+    p = Problem(trajopt, eval_hess=eval_hess) 
     
     nlp_bounds = MOI.NLPBoundsPair.(p.con_bnds...)
     block_data = MOI.NLPBlockData(nlp_bounds, p, true)

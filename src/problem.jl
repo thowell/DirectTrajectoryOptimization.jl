@@ -5,6 +5,8 @@ struct TrajectoryOptimizationProblem{T}
     x::Vector{Vector{T}}
     u::Vector{Vector{T}}
     w::Vector{Vector{T}}
+    λ_dyn::Vector{Vector{T}} 
+    λ_stage::Vector{Vector{T}}
 end
 
 function TrajectoryOptimizationProblem(obj::Objective, model::DynamicsModel, con::ConstraintSet; 
@@ -12,25 +14,39 @@ function TrajectoryOptimizationProblem(obj::Objective, model::DynamicsModel, con
 
     x = [zeros(nx) for nx in model.dim.x]
     u = [[zeros(nu) for nu in model.dim.u]..., zeros(0)]
+
+    λ_dyn = [zeros(nx) for nx in model.dim.x[2:end]]
+    λ_stage = [zeros(stage.nc) for stage in con.stage for t in stage.idx]
    
-    TrajectoryOptimizationProblem(obj, model, con, x, u, w)
+    TrajectoryOptimizationProblem(obj, model, con, x, u, w, λ_dyn, λ_stage)
 end
 
 TrajectoryOptimizationProblem(obj::Objective, model::DynamicsModel) = TrajectoryOptimizationProblem(obj, model, ConstraintSet())
 
-struct TrajectoryOptimizationIndices
+struct TrajectoryOptimizationIndices 
+    obj_hess::Vector{Vector{Int}}
     dyn_con::Vector{Vector{Int}} 
     dyn_jac::Vector{Vector{Int}} 
+    dyn_hess::Vector{Vector{Int}}
     stage_con::Vector{Vector{Int}} 
     stage_jac::Vector{Vector{Int}} 
+    stage_hess::Vector{Vector{Int}}
 end
 
-function indices(dyn::Vector{Dynamics{T}}, stage::StageConstraints{T}) where T 
+function indices(obj::Objective, dyn::Vector{Dynamics{T}}, stage::StageConstraints{T}, key::Vector{Tuple{Int,Int}},
+        nx::Vector{Int}, nu::Vector{Int}) where T 
+    # Jacobians
     dyn_con = constraint_indices(dyn, shift=0)
     dyn_jac = jacobian_indices(dyn, shift=0)
     stage_con = constraint_indices(stage, shift=num_con(dyn))
     stage_jac = jacobian_indices(stage, shift=num_jac(dyn)) 
-    return TrajectoryOptimizationIndices(dyn_con, dyn_jac, stage_con, stage_jac) 
+
+    # Hessian of Lagrangian 
+    obj_hess = hessian_indices(obj, key, nx, nu)
+    dyn_hess = hessian_indices(dyn, key, nx, nu)
+    stage_hess = hessian_indices(stage, key, nx, nu)
+
+    return TrajectoryOptimizationIndices(obj_hess, dyn_con, dyn_jac, dyn_hess, stage_con, stage_jac, stage_hess) 
 end
 
 struct Problem{T} <: MOI.AbstractNLPEvaluator
@@ -41,7 +57,7 @@ struct Problem{T} <: MOI.AbstractNLPEvaluator
     num_hess_lag::Int               
     var_bnds::Vector{Vector{T}}
     con_bnds::Vector{Vector{T}}
-    con_idx::TrajectoryOptimizationIndices
+    idx::TrajectoryOptimizationIndices
     sp_jac
     sp_hess_lag
     hess_lag::Bool 
@@ -62,7 +78,6 @@ end
 
 function constraint_bounds(dyn::Vector{Dynamics{T}}, stage::StageConstraints{T}, nc::Int, idx::TrajectoryOptimizationIndices) where T
     cl, cu = zeros(nc), zeros(nc) 
-
     i = 1
     for con in stage 
         for t in con.idx 
@@ -75,7 +90,7 @@ function constraint_bounds(dyn::Vector{Dynamics{T}}, stage::StageConstraints{T},
     return cl, cu
 end 
 
-function Problem(trajopt::TrajectoryOptimizationProblem) 
+function Problem(trajopt::TrajectoryOptimizationProblem; eval_hess=false) 
     # number of variables
     nz = sum(trajopt.model.dim.x) + sum(trajopt.model.dim.u)
     
@@ -95,19 +110,45 @@ function Problem(trajopt::TrajectoryOptimizationProblem)
     # primal variable bounds
     zl, zu = primal_bounds(trajopt.con.bounds, nz, trajopt.model.idx.x, trajopt.model.idx.u) 
 
-    # nonlinear constraint indices 
-    con_idx = indices(trajopt.model.dyn, trajopt.con.stage)
-
-    # nonlinear constraint bounds
-    cl, cu = constraint_bounds(trajopt.model.dyn, trajopt.con.stage, nc, con_idx) 
-
     # constraint Jacobian sparsity
     sp_dyn = sparsity_jacobian(trajopt.model.dyn, trajopt.model.dim.x, trajopt.model.dim.u, row_shift=0)
     sp_con = sparsity_jacobian(trajopt.con.stage, trajopt.model.dim.x, trajopt.model.dim.u, row_shift=nc_dyn)
     sp_jac = collect([sp_dyn..., sp_con...]) 
 
-    # Hessian of Lagrangian sparsity
-    sp_hess_lag = [] 
+    # Hessian of Lagrangian sparsity 
+    sp_obj_hess = sparsity_hessian(trajopt.obj, trajopt.model.dim.x, trajopt.model.dim.u)
+    sp_dyn_hess = sparsity_hessian(trajopt.model.dyn, trajopt.model.dim.x, trajopt.model.dim.u)
+    sp_con_hess = sparsity_hessian(trajopt.con.stage, trajopt.model.dim.x, trajopt.model.dim.u)
+    sp_hess_lag = [sp_obj_hess..., sp_dyn_hess..., sp_con_hess...]
+    sp_hess_lag = !isempty(sp_hess_lag) ? sp_hess_lag : Tuple{Int,Int}[]
+    sp_hess_key = sort(unique(sp_hess_lag))
+    sp_hess_status = [!isempty(sp_obj_hess), !isempty(sp_dyn_hess), !isempty(sp_con_hess)]
 
-    Problem(trajopt, nz, nc, nj, nh, [zl, zu], [cl, cu], con_idx, sp_jac, sp_hess_lag, false)
+    # indices 
+    idx = indices(trajopt.obj, trajopt.model.dyn, trajopt.con.stage, sp_hess_key, trajopt.model.dim.x, trajopt.model.dim.u)
+
+    # nonlinear constraint bounds
+    cl, cu = constraint_bounds(trajopt.model.dyn, trajopt.con.stage, nc, idx) 
+
+    Problem(trajopt, nz, nc, nj, nh, [zl, zu], [cl, cu], idx, sp_jac, sp_hess_lag, eval_hess)
+end
+
+function trajectory!(x::Vector{Vector{T}}, u::Vector{Vector{T}}, z::Vector{T}, 
+    idx_x::Vector{Vector{Int}}, idx_u::Vector{Vector{Int}}) where T
+    for (t, idx) in enumerate(idx_x)
+        x[t] .= @views z[idx]
+    end 
+    for (t, idx) in enumerate(idx_u)
+        u[t] .= @views z[idx]
+    end
+end
+
+function duals!(λ_dyn::Vector{Vector{T}}, λ_stage::Vector{Vector{T}}, λ::Vector{T}, 
+    idx_dyn::Vector{Vector{Int}}, idx_stage::Vector{Vector{Int}}) where T
+    for (t, idx) in enumerate(idx_dyn)
+        λ_dyn[t] .= @views λ[idx]
+    end 
+    for (t, idx) in enumerate(idx_stage)
+        λ_stage[t] .= @views λ[idx]
+    end
 end

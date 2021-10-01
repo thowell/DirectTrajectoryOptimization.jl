@@ -24,17 +24,24 @@ function Dynamics(f::Function, ny::Int, nx::Int, nu::Int; nw::Int=0, eval_hess=f
     jac_func = eval(Symbolics.build_function(jac.nzval, y, x, u, w)[2]);
     nj = length(jac.nzval)
     sp_jac = [findnz(jac)[1:2]...]
-
-    hess_func = eval_hess ? Expr(:null) : Expr(:null) 
-    sp_hess = eval_hess ? [Int[]] : [Int[]]
-    nh = eval_hess ? 0 : 0
+    if eval_hess
+        @variables λ[1:ny] 
+        lag_con = dot(λ, val)
+        hess = Symbolics.sparsehessian(lag_con, [x; u; y])
+        hess_func = eval(Symbolics.build_function(hess.nzval, x, u, w, y, λ)[2])
+        sp_hess = [findnz(hess)[1:2]...]
+        nh = length(hess.nzval)
+    else 
+        hess_func = Expr(:null) 
+        sp_hess = [Int[]]
+        nh = 0
+    end
   
     return Dynamics(val_func, jac_func, hess_func, ny, nx, nu, nw, nj, nh,
         sp_jac, sp_hess, zeros(ny), zeros(nj), zeros(nh))
 end
 
 function eval_con!(c, idx, cons::Vector{Dynamics{T}}, x, u, w) where T
-    fill!(c, 0.0)
     for (t, con) in enumerate(cons)
         con.val(con.val_cache, x[t+1], x[t], u[t], w[t])
         @views c[idx[t]] .= con.val_cache
@@ -43,11 +50,18 @@ function eval_con!(c, idx, cons::Vector{Dynamics{T}}, x, u, w) where T
 end
 
 function eval_jac!(j, idx, cons::Vector{Dynamics{T}}, x, u, w) where T
-    fill!(j, 0.0)
     for (t, con) in enumerate(cons) 
         con.jac(con.jac_cache, x[t+1], x[t], u[t], w[t])
         @views j[idx[t]] .= con.jac_cache
         fill!(con.jac_cache, 0.0) # TODO: confirm this is necessary
+    end
+end
+
+function eval_hess_lag!(h, idx, cons::Vector{Dynamics{T}}, x, u, w, λ) where T
+    for (t, con) in enumerate(cons) 
+        con.hess(con.hess_cache, x[t+1], x[t], u[t], w[t], λ[t])
+        # @views h[idx[t]] .= con.hess_cache
+        fill!(con.hess_cache, 0.0) # TODO: confirm this is necessary
     end
 end
 
@@ -63,6 +77,19 @@ function sparsity_jacobian(cons::Vector{Dynamics{T}}, nx::Vector{Int}, nu::Vecto
     return collect(zip(row, col))
 end
 
+function sparsity_hessian(cons::Vector{Dynamics{T}}, nx::Vector{Int}, nu::Vector{Int}) where T
+    row = Int[]
+    col = Int[]
+    for (t, con) in enumerate(cons) 
+        if !isempty(con.sp_hess[1])
+            shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+            push!(row, (con.sp_hess[1] .+ shift)...) 
+            push!(col, (con.sp_hess[2] .+ shift)...) 
+        end
+    end
+    return collect(zip(row, col))
+end
+
 num_con(cons::Vector{Dynamics{T}}) where T = sum([con.ny for con in cons])
 num_xuy(cons::Vector{Dynamics{T}}) where T = sum([con.nx + con.nu for con in cons]) + cons[end].ny
 num_jac(cons::Vector{Dynamics{T}}) where T = sum([con.nj for con in cons])
@@ -73,6 +100,20 @@ end
 
 function jacobian_indices(cons::Vector{Dynamics{T}}; shift=0) where T
     [collect(shift + (t > 1 ? sum([cons[s].nj for s = 1:(t-1)]) : 0) .+ (1:cons[t].nj)) for t = 1:length(cons)]
+end
+
+function hessian_indices(cons::Vector{Dynamics{T}}, key::Vector{Tuple{Int,Int}}, nx::Vector{Int}, nu::Vector{Int}) where T
+    idx = Vector{Int}[]
+    for (t, con) in enumerate(cons) 
+        if !isempty(con.sp_hess[1])
+            shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+            row = collect(con.sp_hess[1] .+ shift)
+            col = collect(con.sp_hess[2] .+ shift)
+            rc = collect(zip(row, col))
+            push!(idx, [findfirst(x -> x == i, key) for i in rc])
+        end
+    end
+    return idx
 end
 
 function x_indices(cons::Vector{Dynamics{T}}) where T 

@@ -84,7 +84,9 @@ function midpoint_implicit(y, x, u, w)
     y - (x + h * acrobot(0.5 * (x + y), u, w))
 end
 
-dt = Dynamics(midpoint_implicit, nx, nx, nu, nw=nw)
+dt = Dynamics(midpoint_implicit, nx, nx, nu, nw=nw, eval_hess=true)
+dt.hess_cache
+length(dt.sp_hess[2])
 dyn = [dt for t = 1:T-1] 
 model = DynamicsModel(dyn)
 
@@ -97,19 +99,34 @@ xT = [0.0; π; 0.0; 0.0]
 # objective 
 ft = (x, u) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
 fT = (x, u) -> 0.1 * dot(x[3:4], x[3:4])
-ct = Cost(ft, nx, nu, [t for t = 1:T-1])
-cT = Cost(fT, nx, 0, [T])
+ct = Cost(ft, nx, nu, [t for t = 1:T-1], eval_hess=true)
+cT = Cost(fT, nx, 0, [T], eval_hess=true)
 obj = [ct, cT]
 
 # constraints
 x_init = Bound(nx, nu, [1], xl=x1, xu=x1)
 x_goal = Bound(nx, 0, [T], xl=xT, xu=xT)
-# u_limits = Bound(nx, nu, [t for t = 1:T-1], ul=-4.0 * ones(nu), uu=4.0 * ones(nu))
-cons = ConstraintSet([x_init, x_goal], [StageConstraint()])
+ct = (x, u) -> [-5.0 * ones(nu) - u; u - 5.0 * ones(nu)]
+# cont = StageConstraint(ct, nx, nu, [t for t = 1:T-1], :inequality, eval_hess=true)
+cont = StageConstraint()
+cons = ConstraintSet([x_init, x_goal], [cont])
+
+# hessian sparsity 
+sp_obj_hess = sparsity_hessian(obj, model.dim.x, model.dim.u)
+sp_dyn_hess = sparsity_hessian(dyn, model.dim.x, model.dim.u)
+sp_con_hess = sparsity_hessian(cons.stage, model.dim.x, model.dim.u)
+sp_hess = collect([sp_obj_hess..., sp_dyn_hess..., sp_con_hess...]) 
+sp_key = sort(unique(sp_hess))
+nh = length(sp_key)
+h0 = zeros(nh)
+
+idx_obj_hess = hessian_indices(obj, sp_key, model.dim.x, model.dim.u)
+idx_dyn_hess = hessian_indices(dyn, sp_key, model.dim.x, model.dim.u)
+idx_con_hess = hessian_indices(cons.stage, sp_key, model.dim.x, model.dim.u)
 
 # problem 
 trajopt = TrajectoryOptimizationProblem(obj, model, cons)
-s = Solver(trajopt)
+s = Solver(trajopt, eval_hess=true)
 
 # initialize
 x_interpolation = linear_interpolation(x1, xT, T)
@@ -122,6 +139,16 @@ for (t, idx) in enumerate(s.p.trajopt.model.idx.u)
     z0[idx] = u_guess[t]
 end
 initialize!(s, z0)
+
+nh = length(s.p.sp_hess_lag)
+h0 = zeros(nh)
+λ = zeros(num_con(s.p.trajopt.model.dyn) + num_con(s.p.trajopt.con.stage))
+@benchmark duals!($s.p.trajopt.λ_dyn, $s.p.trajopt.λ_stage, $λ, $s.p.idx.dyn_con, $s.p.idx.stage_con)
+
+σ = 1.0
+@benchmark eval_obj_hess!($h0, $s.p.idx.obj_hess, $s.p.trajopt.obj, $s.p.trajopt.x, $s.p.trajopt.u, $σ)
+@benchmark eval_hess_lag!($h0, $s.p.idx.dyn_hess, $s.p.trajopt.model.dyn, $s.p.trajopt.x, $s.p.trajopt.u, $s.p.trajopt.w, $s.p.trajopt.λ_dyn)
+@benchmark eval_hess_lag!($h0, $s.p.idx.stage_hess, $s.p.trajopt.con.stage, $s.p.trajopt.x, $s.p.trajopt.u, $s.p.trajopt.λ_stage)
 
 # solve
 @time solve!(s)
