@@ -1,22 +1,27 @@
+# PREAMBLE
+
+# PKG_SETUP
+
+# ## Setup
+
 using DirectTrajectoryOptimization 
 using LinearAlgebra
+using Plots
 
-# horizon 
+# ## horizon 
 T = 101 
 
-# acrobot 
+# ## acrobot 
 nx = 4 
 nu = 1 
 nw = 0 
 
 function acrobot(x, u, w)
-    # link 1
     mass1 = 1.0  
     inertia1 = 0.33  
     length1 = 1.0 
     lengthcom1 = 0.5 
 
-    # link 2
     mass2 = 1.0  
     inertia2 = 0.33  
     length2 = 1.0 
@@ -26,7 +31,6 @@ function acrobot(x, u, w)
     friction1 = 0.1 
     friction2 = 0.1
 
-    # mass matrix
     function M(x, w)
         a = (inertia1 + inertia2 + mass2 * length1 * length1
             + 2.0 * mass2 * length1 * lengthcom2 * cos(x[2]))
@@ -38,7 +42,6 @@ function acrobot(x, u, w)
        return [a b; b c]
     end
 
-    # dynamics bias
     function τ(x, w)
         a = (-1.0 * mass1 * gravity * lengthcom1 * sin(x[1])
             - mass2 * gravity * (length1 * sin(x[1])
@@ -58,12 +61,10 @@ function acrobot(x, u, w)
         return [a b; c d]
     end
 
-    # input Jacobian
     function B(x, w)
         [0.0; 1.0]
     end
 
-    # dynamics
     q = view(x, 1:2)
     v = view(x, 3:4)
 
@@ -78,34 +79,32 @@ function midpoint_implicit(y, x, u, w)
     y - (x + h * acrobot(0.5 * (x + y), u, w))
 end
 
+# ## model
 dt = Dynamics(midpoint_implicit, nx, nx, nu, nw=nw)
 dyn = [dt for t = 1:T-1] 
 model = DynamicsModel(dyn)
 
-# initial state 
+# ## initialization
 x1 = [0.0; 0.0; 0.0; 0.0] 
-
-# goal state
 xT = [0.0; π; 0.0; 0.0] 
 
-# objective 
+# ## objective 
 ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
 oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
 ct = Cost(ot, nx, nu, nw, [t for t = 1:T-1])
 cT = Cost(oT, nx, 0, nw, [T])
 obj = [ct, cT]
 
-# constraints
+# ## constraints
 x_init = Bound(nx, nu, [1], xl=x1, xu=x1)
 x_goal = Bound(nx, 0, [T], xl=xT, xu=xT)
-# u_limits = Bound(nx, nu, [t for t = 1:T-1], ul=-4.0 * ones(nu), uu=4.0 * ones(nu))
 cons = ConstraintSet([x_init, x_goal], [StageConstraint()])
 
-# problem 
+# ## problem 
 trajopt = TrajectoryOptimizationProblem(obj, model, cons)
 s = Solver(trajopt)
 
-# initialize
+# ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)
 u_guess = [1.0 * randn(nu) for t = 1:T-1]
 z0 = zeros(s.p.num_var)
@@ -117,14 +116,15 @@ for (t, idx) in enumerate(s.p.trajopt.model.idx.u)
 end
 initialize!(s, z0)
 
-# solve
+# ## solve
 @time solve!(s)
-# @benchmark solve!($s)
 
-# solution
+# ## solution
 @show trajopt.x[1]
 @show trajopt.x[T]
 
-using Plots
+# ## state
 plot(hcat(trajopt.x...)')
+
+# ## control
 plot(hcat(trajopt.u[1:end-1]..., trajopt.u[end-1])', linetype = :steppost)
