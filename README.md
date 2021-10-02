@@ -15,3 +15,7 @@ subject to      xt+1 = ft(xt, ut; wt) , t = 1,...,T-1
 
 Fast and allocation-free gradients and sparse Jacobians are automatically generated using [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) for user-provided costs, constraints, and dynamics. The problem is solved with [Ipopt](https://coin-or.github.io/Ipopt/).
 
+## Installation
+```
+Pkg.add("DirectTrajectoryOptimization")
+```
