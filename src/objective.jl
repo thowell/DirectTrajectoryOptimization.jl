@@ -10,16 +10,16 @@ struct Cost{T}
     idx::Vector{Int}
 end
 
-function Cost(f::Function, nx::Int, nu::Int, idx::Vector{Int}; eval_hess=false)
+function Cost(f::Function, nx::Int, nu::Int, nw::Int, idx::Vector{Int}; eval_hess=false)
     #TODO: option to load/save methods
-    @variables x[1:nx], u[1:nu]
-    val = f(x, u)
+    @variables x[1:nx], u[1:nu], w[1:nw]
+    val = f(x, u, w)
     grad = Symbolics.gradient(val, [x; u])
-    val_func = eval(Symbolics.build_function([val], x, u)[2])
-    grad_func = eval(Symbolics.build_function(grad, x, u)[2])
+    val_func = eval(Symbolics.build_function([val], x, u, w)[2])
+    grad_func = eval(Symbolics.build_function(grad, x, u, w)[2])
     if eval_hess 
         hess = Symbolics.sparsehessian(val, [x; u])
-        hess_func = eval(Symbolics.build_function(hess.nzval, x, u)[2])
+        hess_func = eval(Symbolics.build_function(hess.nzval, x, u, w)[2])
         sparsity = [findnz(hess)[1:2]...]
         nh = length(hess.nzval)
     else 
@@ -34,21 +34,21 @@ end
 
 Objective{T} = Vector{Cost{T}} where T
 
-function eval_obj(obj::Objective, x, u) 
+function eval_obj(obj::Objective, x, u, w) 
     J = 0.0
     for cost in obj
         for t in cost.idx
-            cost.val(cost.val_cache, x[t], u[t])
+            cost.val(cost.val_cache, x[t], u[t], w[t])
             J += cost.val_cache[1]
         end
     end
     return J 
 end
 
-function eval_obj_grad!(grad, idx, obj::Objective, x, u)
+function eval_obj_grad!(grad, idx, obj::Objective, x, u, w)
     for cost in obj
         for t in cost.idx
-            cost.grad(cost.grad_cache, x[t], u[t])
+            cost.grad(cost.grad_cache, x[t], u[t], w[t])
             @views grad[idx[t]] .+= cost.grad_cache
             # fill!(cost.grad_cache, 0.0) # TODO: confirm this is necessary
         end
@@ -56,11 +56,11 @@ function eval_obj_grad!(grad, idx, obj::Objective, x, u)
 end
 
 #TODO: test
-function eval_obj_hess!(hess, idx, obj::Objective, x, u, σ)
+function eval_obj_hess!(hess, idx, obj::Objective, x, u, w, σ)
     i = 1
     for cost in obj
         for t in cost.idx
-            cost.hess(cost.hess_cache, x[t], u[t])
+            cost.hess(cost.hess_cache, x[t], u[t], w[t])
             cost.hess_cache .*= σ
             @views hess[idx[i]] .+= cost.hess_cache
             i += 1

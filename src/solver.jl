@@ -15,7 +15,7 @@ function Solver(trajopt::TrajectoryOptimizationProblem; eval_hess=false, options
     solver = Ipopt.Optimizer()
     
     # TODO: options 
-    solver.options["max_iter"] = 100
+    solver.options["max_iter"] = 1000
     solver.options["tol"] = 1.0e-3
     solver.options["constr_viol_tol"] = 1.0e-3
     

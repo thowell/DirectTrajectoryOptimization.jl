@@ -1,6 +1,5 @@
 using DirectTrajectoryOptimization 
 using LinearAlgebra
-using BenchmarkTools
 
 # horizon 
 T = 101 
@@ -11,11 +10,6 @@ nu = 1
 nw = 0 
 
 function acrobot(x, u, w)
-    # dimensions
-    n = 4
-    m = 1
-    d = 0
-
     # link 1
     mass1 = 1.0  
     inertia1 = 0.33  
@@ -95,10 +89,10 @@ x1 = [0.0; 0.0; 0.0; 0.0]
 xT = [0.0; π; 0.0; 0.0] 
 
 # objective 
-ft = (x, u) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
-fT = (x, u) -> 0.1 * dot(x[3:4], x[3:4])
-ct = Cost(ft, nx, nu, [t for t = 1:T-1])
-cT = Cost(fT, nx, 0, [T])
+ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
+oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
+ct = Cost(ot, nx, nu, nw, [t for t = 1:T-1])
+cT = Cost(oT, nx, 0, nw, [T])
 obj = [ct, cT]
 
 # constraints
@@ -113,7 +107,7 @@ s = Solver(trajopt)
 
 # initialize
 x_interpolation = linear_interpolation(x1, xT, T)
-u_guess = [0.01 * ones(nu) for t = 1:T-1]
+u_guess = [1.0 * randn(nu) for t = 1:T-1]
 z0 = zeros(s.p.num_var)
 for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
     z0[idx] = x_interpolation[t]

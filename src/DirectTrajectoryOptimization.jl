@@ -1,15 +1,12 @@
 module DirectTrajectoryOptimization
 
 using LinearAlgebra
-using StaticArrays
 using SparseArrays
 using Symbolics, IfElse
-using BenchmarkTools, InteractiveUtils
+using Parameters
+using Ipopt
 using MathOptInterface
 const MOI = MathOptInterface
-using Parameters
-using JLD2
-using Ipopt
 
 include(joinpath(pwd(), "src/objective.jl"))
 include(joinpath(pwd(), "src/constraints.jl"))

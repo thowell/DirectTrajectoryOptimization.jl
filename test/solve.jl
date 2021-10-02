@@ -6,6 +6,7 @@
     nx = 4 
     nu = 1 
     nw = 0 
+    w_dim = [nw for t = 1:T]
 
     function acrobot(x, u, w)
         # dimensions
@@ -83,7 +84,7 @@
 
     dt = Dynamics(midpoint_implicit, nx, nx, nu, nw=nw)
     dyn = [dt for t = 1:T-1] 
-    model = DynamicsModel(dyn)
+    model = DynamicsModel(dyn, w_dim=w_dim)
 
     # initial state 
     x1 = [0.0; 0.0; 0.0; 0.0] 
@@ -95,10 +96,10 @@
     x_interpolation = linear_interpolation(x1, xT, T)
 
     # objective 
-    ft = (x, u) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
-    fT = (x, u) -> 0.1 * dot(x[3:4], x[3:4])
-    ct = Cost(ft, nx, nu, [t for t = 1:T-1])
-    cT = Cost(fT, nx, 0, [T])
+    ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
+    oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
+    ct = Cost(ot, nx, nu, nw, [t for t = 1:T-1])
+    cT = Cost(oT, nx, 0, nw, [T])
     obj = [ct, cT]
 
     # constraints

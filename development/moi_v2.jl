@@ -1,4 +1,6 @@
 using LinearAlgebra 
+using BenchmarkTools 
+using InteractiveUtils 
 
 # dimensions
 T = 26

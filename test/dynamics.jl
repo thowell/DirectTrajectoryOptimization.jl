@@ -3,7 +3,8 @@
     nx = 2 
     nu = 1 
     nw = 0 
-
+    w_dim = [nw for t = 1:T]
+    
     function pendulum(z, u, w) 
         mass = 1.0 
         lc = 1.0 
@@ -19,7 +20,7 @@
 
     dt = Dynamics(euler_implicit, nx, nx, nu, nw=nw);
     dyn = [dt for t = 1:T-1] 
-    model = DynamicsModel(dyn)
+    model = DynamicsModel(dyn, w_dim=w_dim)
 
     
     x1 = ones(nx) 
@@ -47,7 +48,7 @@
 
     DirectTrajectoryOptimization.eval_con!(d, idx_dyn, dyn, X, U, W)
     @test norm(vcat(d...) - vcat([euler_implicit(X[t+1], X[t], U[t], W[t]) for t = 1:T-1]...)) < 1.0e-8
-    info = @benchmark DirectTrajectoryOptimization.eval_con!($d, $idx_dyn, $dyn, $X, $U, $W) 
+    # info = @benchmark DirectTrajectoryOptimization.eval_con!($d, $idx_dyn, $dyn, $X, $U, $W) 
 
     DirectTrajectoryOptimization.eval_jac!(j, idx_jac, dyn, X, U, W) 
     s = DirectTrajectoryOptimization.sparsity_jacobian(dyn, dim_x, dim_u)
@@ -57,7 +58,7 @@
     end
 
     @test norm(jac_dense - [jac_fd zeros(dyn[2].nx, dyn[2].nu + dyn[2].ny); zeros(dyn[2].ny, dyn[1].nx + dyn[1].nu) jac_fd]) < 1.0e-8
-    info = @benchmark DirectTrajectoryOptimization.eval_jac!($j, $idx_jac, $dyn, $X, $U, $W) 
+    # info = @benchmark DirectTrajectoryOptimization.eval_jac!($j, $idx_jac, $dyn, $X, $U, $W) 
 
     idx_x = model.idx.x
     idx_u = model.idx.u
@@ -79,6 +80,6 @@
     end
 
     @test norm(z - z̄) < 1.0e-8
-    info = @benchmark DirectTrajectoryOptimization.trajectory!($x, $u, $z, $idx_x, $idx_u)
+    # info = @benchmark DirectTrajectoryOptimization.trajectory!($x, $u, $z, $idx_x, $idx_u)
 end
 

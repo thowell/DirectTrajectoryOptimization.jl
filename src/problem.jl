@@ -84,9 +84,9 @@ function constraint_bounds(dyn::Vector{Dynamics{T}}, stage::StageConstraints{T},
             if con.type == :inequality
                 cu[idx.stage_con[i]] .= Inf
             end
+            i += 1
         end 
     end
-    
     return cl, cu
 end 
 
@@ -130,7 +130,7 @@ function Problem(trajopt::TrajectoryOptimizationProblem; eval_hess=false)
     # nonlinear constraint bounds
     cl, cu = constraint_bounds(trajopt.model.dyn, trajopt.con.stage, nc, idx) 
 
-    Problem(trajopt, nz, nc, nj, nh, [zl, zu], [cl, cu], idx, sp_jac, sp_hess_lag, eval_hess)
+    Problem(trajopt, nz, nc, nj, nh, [zl, zu], [cl, cu], idx, sp_jac, sp_hess_key, eval_hess)
 end
 
 function trajectory!(x::Vector{Vector{T}}, u::Vector{Vector{T}}, z::Vector{T}, 
@@ -143,7 +143,7 @@ function trajectory!(x::Vector{Vector{T}}, u::Vector{Vector{T}}, z::Vector{T},
     end
 end
 
-function duals!(λ_dyn::Vector{Vector{T}}, λ_stage::Vector{Vector{T}}, λ::Vector{T}, 
+function duals!(λ_dyn::Vector{Vector{T}}, λ_stage::Vector{Vector{T}}, λ, 
     idx_dyn::Vector{Vector{Int}}, idx_stage::Vector{Vector{Int}}) where T
     for (t, idx) in enumerate(idx_dyn)
         λ_dyn[t] .= @views λ[idx]

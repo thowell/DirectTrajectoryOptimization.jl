@@ -28,7 +28,7 @@ function Dynamics(f::Function, ny::Int, nx::Int, nu::Int; nw::Int=0, eval_hess=f
         @variables λ[1:ny] 
         lag_con = dot(λ, val)
         hess = Symbolics.sparsehessian(lag_con, [x; u; y])
-        hess_func = eval(Symbolics.build_function(hess.nzval, x, u, w, y, λ)[2])
+        hess_func = eval(Symbolics.build_function(hess.nzval, y, x, u, w, λ)[2])
         sp_hess = [findnz(hess)[1:2]...]
         nh = length(hess.nzval)
     else 
@@ -60,7 +60,7 @@ end
 function eval_hess_lag!(h, idx, cons::Vector{Dynamics{T}}, x, u, w, λ) where T
     for (t, con) in enumerate(cons) 
         con.hess(con.hess_cache, x[t+1], x[t], u[t], w[t], λ[t])
-        # @views h[idx[t]] .= con.hess_cache
+        @views h[idx[t]] .+= con.hess_cache
         fill!(con.hess_cache, 0.0) # TODO: confirm this is necessary
     end
 end
@@ -147,10 +147,10 @@ struct DynamicsDimensions
     w::Vector{Int}
 end
 
-function DynamicsDimensions(cons::Vector{Dynamics{T}}) where T 
+function DynamicsDimensions(cons::Vector{Dynamics{T}}; 
+    w_dim=[0 for t = 1:(length(cons) + 1)]) where T 
     x_dim = [[con.nx for con in cons]..., cons[end].ny]
     u_dim = [con.nu for con in cons] 
-    w_dim = [con.nw for con in cons] 
     return DynamicsDimensions(x_dim, u_dim, w_dim)
 end
 
@@ -160,13 +160,14 @@ struct DynamicsModel{T}
     dim::DynamicsDimensions
 end
 
-function DynamicsModel(cons::Vector{Dynamics{T}}) where T
+function DynamicsModel(cons::Vector{Dynamics{T}};
+    w_dim=[0 for t = 1:(length(cons) + 1)]) where T
     idx = DynamicsIndices(
             x_indices(cons),
             u_indices(cons),
             xu_indices(cons),
             xuy_indices(cons))
-    dim = DynamicsDimensions(cons)
+    dim = DynamicsDimensions(cons, w_dim=w_dim)
     DynamicsModel(cons, idx, dim)
 end
 

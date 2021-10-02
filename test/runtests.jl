@@ -1,7 +1,8 @@
 using Test
-using BenchmarkTools
+using Symbolics
 using ForwardDiff
 using LinearAlgebra
+using SparseArrays
 using DirectTrajectoryOptimization
 
 include("objective.jl")

@@ -10,28 +10,24 @@ L(x, y) = f(x) + dot(y, c(x))
 
 Lsym = L(x, y)
 hess = Symbolics.hessian(Lsym, x)
+hess_func = eval(Symbolics.build_function(hess, x, y)[1])
 hess_sp = Symbolics.sparsehessian(Lsym, x)
-
+hess_sp_func = eval(Symbolics.build_function(hess_sp.nzval, x, y)[2])
 hess_sp.nzval
 sparsity = [findnz(hess_sp)[1:2]...]
-findnz(hess_sp)
-hess_sp.nzval[1]
-hess_sp.nzval[2]
-hess_sp[1]
+# findnz(hess_sp)
+# hess_sp.nzval[1]
+# hess_sp.nzval[2]
+# hess_sp[1]
 
+x0 = rand(3) 
+y0 = rand(3)
+h0 = zeros(size(hess))
+h0_sp = zeros(length(hess_sp.nzval))
 
-n = 5 
-m = 3
-r_idx = collect(1:n) 
-c_idx = collect(1:m)
-A = rand(n, m)
-Avec = vec(A)
-
-v_idx = Tuple{Int,Int}[]
-for j in c_idx 
-    for i in r_idx
-        push!(v_idx, (i, j))
-    end
+hess_sp_func(h0_sp, x0, y0)
+for (i, h) in enumerate(h0_sp)
+    h0[sparsity[1][i], sparsity[2][i]] = h
 end
-v_idx 
 
+h0 - hess_func(x0, y0)

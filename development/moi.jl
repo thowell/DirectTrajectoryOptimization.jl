@@ -1,4 +1,6 @@
-using InteractiveUtils
+using LinearAlgebra 
+using BenchmarkTools 
+using InteractiveUtils 
 
 # test 
 T = 26

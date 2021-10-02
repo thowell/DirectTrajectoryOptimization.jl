@@ -21,6 +21,7 @@ struct StageConstraint{T} <: Constraint
     hess
     nx::Int 
     nu::Int 
+    nw::Int
     nc::Int
     nj::Int 
     nh::Int
@@ -35,13 +36,13 @@ end
 
 StageConstraints{T} = Vector{StageConstraint{T}} where T
 
-function StageConstraint(f::Function, nx::Int, nu::Int, idx::Vector{Int}, type::Symbol; eval_hess=false)
+function StageConstraint(f::Function, nx::Int, nu::Int, nw::Int, idx::Vector{Int}, type::Symbol; eval_hess=false)
     #TODO: option to load/save methods
-    @variables x[1:nx], u[1:nu]
-    val = f(x, u)
+    @variables x[1:nx], u[1:nu], w[1:nw]
+    val = f(x, u, w)
     jac = Symbolics.sparsejacobian(val, [x; u])
-    val_func = eval(Symbolics.build_function(val, x, u)[2])
-    jac_func = eval(Symbolics.build_function(jac.nzval, x, u)[2])
+    val_func = eval(Symbolics.build_function(val, x, u, w)[2])
+    jac_func = eval(Symbolics.build_function(jac.nzval, x, u, w)[2])
     nc = length(val) 
     nj = length(jac.nzval)
     sp_jac = [findnz(jac)[1:2]...]
@@ -49,7 +50,7 @@ function StageConstraint(f::Function, nx::Int, nu::Int, idx::Vector{Int}, type::
         @variables λ[1:nc]
         lag_con = dot(λ, val) 
         hess = Symbolics.sparsehessian(lag_con, [x; u])
-        hess_func = eval(Symbolics.build_function(hess.nzval, x, u, λ)[2])
+        hess_func = eval(Symbolics.build_function(hess.nzval, x, u, w, λ)[2])
         sp_hess = [findnz(hess)[1:2]...]
         nh = length(hess.nzval)
     else 
@@ -58,18 +59,19 @@ function StageConstraint(f::Function, nx::Int, nu::Int, idx::Vector{Int}, type::
         nh = 0
     end
     return StageConstraint(val_func, jac_func, hess_func,
-        nx, nu, nc, nj, nh, sp_jac, sp_hess, zeros(nc), zeros(nj), zeros(nh), type, idx)
+        nx, nu, nw, nc, nj, nh, sp_jac, sp_hess, zeros(nc), zeros(nj), zeros(nh), type, idx)
 end
 
 function StageConstraint()
-    return StageConstraint((c, x, u) -> nothing, (j, x, u) -> nothing, (h, x, u) -> nothing, 0, 0, 0, 0, 0, [Int[]], [Int[]], Float64[], Float64[], Float64[], :empty, Int[])
+    return StageConstraint((c, x, u, w) -> nothing, (j, x, u, w) -> nothing, (h, x, u, w) -> nothing, 
+        0, 0, 0, 0, 0, 0, [Int[]], [Int[]], Float64[], Float64[], Float64[], :empty, Int[])
 end
 
-function eval_con!(c, idx, cons::StageConstraints{T}, x, u) where T
+function eval_con!(c, idx, cons::StageConstraints{T}, x, u, w) where T
     i = 1
     for con in cons
         for t in con.idx
-            con.val(con.val_cache, x[t], u[t])
+            con.val(con.val_cache, x[t], u[t], w[t])
             @views c[idx[i]] .= con.val_cache
             fill!(con.val_cache, 0.0) # TODO: confirm this is necessary 
             i += 1
@@ -77,11 +79,11 @@ function eval_con!(c, idx, cons::StageConstraints{T}, x, u) where T
     end
 end
 
-function eval_jac!(j, idx, cons::StageConstraints{T}, x, u) where T
+function eval_jac!(j, idx, cons::StageConstraints{T}, x, u, w) where T
     i = 1
     for con in cons
         for t in con.idx
-            con.jac(con.jac_cache, x[t], u[t])
+            con.jac(con.jac_cache, x[t], u[t], w[t])
             @views j[idx[i]] .= con.jac_cache
             fill!(con.jac_cache, 0.0) # TODO: confirm this is necessary
             i += 1
@@ -89,12 +91,12 @@ function eval_jac!(j, idx, cons::StageConstraints{T}, x, u) where T
     end
 end
 
-function eval_hess_lag!(h, idx, cons::StageConstraints{T}, x, u, λ) where T
+function eval_hess_lag!(h, idx, cons::StageConstraints{T}, x, u, w, λ) where T
     i = 1
     for con in cons
         for t in con.idx
-            con.hess(con.hess_cache, x[t], u[t], λ[t])
-            # @views h[idx[i]] .= con.hess_cache
+            con.hess(con.hess_cache, x[t], u[t], w[t], λ[t])
+            @views h[idx[i]] .+= con.hess_cache
             fill!(con.hess_cache, 0.0) # TODO: confirm this is necessary
             i += 1
         end

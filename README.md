@@ -5,10 +5,10 @@
 This package solves constrained trajectory optimization problems: 
 
 ```
-minimize        gT(xT) + sum(gt(xt, ut))
+minimize        gT(xT; wT) + sum(gt(xt, ut; wt))
 xt, ut
-subject to      xt+1 = ft(xt, ut) , t = 1,...,T-1 
-                ct(xt, ut) {>,=} 0, t = 1,...,T
+subject to      xt+1 = ft(xt, ut; wt) , t = 1,...,T-1 
+                ct(xt, ut; wt) {>,=} 0, t = 1,...,T
                 xt_L <= xt <= xt_U, t = 1,...,T 
                 ut_L <= ut <= ut_U, t = 1,...,T-1.
 ```
