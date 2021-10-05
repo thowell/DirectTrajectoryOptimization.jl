@@ -60,7 +60,7 @@ cons = ConstraintSet([bnd1, bndt, bndT], [cont, conT])
 
 # ## problem 
 trajopt = TrajectoryOptimizationProblem(obj, model, cons)
-s = Solver(trajopt)
+s = Solver(trajopt, options=Options())
 
 # ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)

@@ -29,7 +29,7 @@ export Dynamics, DynamicsModel
 export TrajectoryOptimizationProblem
 
 # solver 
-export Solver, initialize!, solve!
+export Solver, Options, initialize!, solve!
 
 # utils 
 export linear_interpolation
