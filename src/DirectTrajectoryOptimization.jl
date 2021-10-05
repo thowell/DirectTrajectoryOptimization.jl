@@ -8,13 +8,13 @@ using Ipopt
 using MathOptInterface
 const MOI = MathOptInterface
 
-include(joinpath(pwd(), "src/objective.jl"))
-include(joinpath(pwd(), "src/constraints.jl"))
-include(joinpath(pwd(), "src/dynamics.jl"))
-include(joinpath(pwd(), "src/problem.jl"))
-include(joinpath(pwd(), "src/moi.jl"))
-include(joinpath(pwd(), "src/solver.jl"))
-include(joinpath(pwd(), "src/utils.jl"))
+include("objective.jl")
+include("constraints.jl")
+include("dynamics.jl")
+include("problem.jl")
+include("moi.jl")
+include("solver.jl")
+include("utils.jl")
 
 # objective 
 export Cost
