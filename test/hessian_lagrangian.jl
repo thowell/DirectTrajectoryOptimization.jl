@@ -1,5 +1,5 @@
 @testset "Hessian of Lagrangian" begin
-
+    MOI = DirectTrajectoryOptimization.MOI
     # horizon 
     T = 3
 
@@ -186,9 +186,9 @@
     @test norm(h0_full - Lxx_func(z0)) < 1.0e-8
     @test norm(norm(h0 - Lxx_sp_func(z0))) < 1.0e-8
 
-    # h0 = zeros(nh)
-    # MOI.eval_hessian_lagrangian(s.p, h0, z0[1:np], σ, z0[np .+ (1:nd)])
-    # @test norm(norm(h0 - Lxx_sp_func(z0))) < 1.0e-8
+    h0 = zeros(nh)
+    MOI.eval_hessian_lagrangian(s.p, h0, z0[1:np], σ, z0[np .+ (1:nd)])
+    @test norm(norm(h0 - Lxx_sp_func(z0))) < 1.0e-8
 
     # a = z0[1:np]
     # b = z0[np .+ (1:nd)]

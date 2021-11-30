@@ -37,6 +37,7 @@
     j = zeros(DirectTrajectoryOptimization.num_jac(dyn))
 
     dt.val(dt.val_cache, x1, x1, u1, w1) 
+    # @benchmark $dt.val($dt.val_cache, $x1, $x1, $u1, $w1) 
     @test norm(dt.val_cache - euler_implicit(x1, x1, u1, w1)) < 1.0e-8
     dt.jac(dt.jac_cache, x1, x1, u1, w1) 
     jac_dense = zeros(dt.ny, dt.nx + dt.nu + dt.ny)

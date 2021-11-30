@@ -52,7 +52,7 @@ p_obs = [0.5; 0.5]
 r_obs = 0.1
 function obs(x, u, w) 
     e = x[1:2] - p_obs
-    return [dot(e, e) - r_obs^2.0]
+    return [r_obs^2.0 - dot(e, e)]
 end
 cont = StageConstraint(obs, nx, nu, nw, [t for t = 1:T-1], :inequality)
 conT = StageConstraint(obs, nx, 0, nw, [T], :inequality)

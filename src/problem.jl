@@ -82,7 +82,7 @@ function constraint_bounds(dyn::Vector{Dynamics{T}}, stage::StageConstraints{T},
     for con in stage 
         for t in con.idx 
             if con.type == :inequality
-                cu[idx.stage_con[i]] .= Inf
+                cl[idx.stage_con[i]] .= -Inf
             end
             i += 1
         end 

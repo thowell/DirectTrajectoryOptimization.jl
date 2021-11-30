@@ -41,6 +41,35 @@ function Dynamics(f::Function, ny::Int, nx::Int, nu::Int; nw::Int=0, eval_hess=f
         sp_jac, sp_hess, zeros(ny), zeros(nj), zeros(nh))
 end
 
+function Dynamics(g::Function, gz::Function, ny::Int, nx::Int, nu::Int; nw::Int=0)  
+    # jacobian function 
+    nz = nx + nu + ny
+    jac_func = (nj, y, x, u, w) -> gz(reshape(view(nj, :), ny, nz), y, x, u, w)
+
+    # number of Jacobian elements
+    nj = ny * nz
+
+    # Jacobian sparsity
+    row = Int[]
+    col = Int[]
+    for j = 1:nz
+        for i = 1:ny 
+            push!(row, i) 
+            push!(col, j)
+        end
+    end
+
+    sp_jac = [row, col]
+  
+    # Hessian
+    hess_func = Expr(:null) 
+    sp_hess = [Int[]]
+    nh = 0
+  
+    return Dynamics(g, jac_func, hess_func, ny, nx, nu, nw, nj, nh,
+        sp_jac, sp_hess, zeros(ny), zeros(nj), zeros(nh))
+end
+
 function eval_con!(c, idx, cons::Vector{Dynamics{T}}, x, u, w) where T
     for (t, con) in enumerate(cons)
         con.val(con.val_cache, x[t+1], x[t], u[t], w[t])
