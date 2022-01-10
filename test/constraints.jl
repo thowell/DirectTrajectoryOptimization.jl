@@ -13,10 +13,10 @@
     ct = (x, u, w) -> [-ones(nx) - x; x - ones(nx)]
     cT = (x, u, w) -> x
 
-    cont = StageConstraint(ct, nx, nu, nw, [t for t = 1:T-1], :inequality)
-    conT = StageConstraint(cT, nx, 0, nw, [T], :equality)
+    cont = Constraint(ct, nx, nu, nw, idx_ineq=collect(1:2nx))
+    conT = Constraint(cT, nx, 0, 0)
 
-    cons = [cont, conT]
+    cons = [[cont for t = 1:T-1]..., conT]
     nc = DirectTrajectoryOptimization.num_con(cons)
     nj = DirectTrajectoryOptimization.num_jac(cons)
     idx_c = DirectTrajectoryOptimization.constraint_indices(cons)
@@ -31,7 +31,7 @@
 
     @test norm(c - vcat([ct(x[t], u[t], w[t]) for t = 1:T-1]..., cT(x[T], u[T], w[T]))) < 1.0e-8
     DirectTrajectoryOptimization.eval_jac!(j, idx_j, cons, x, u, w)
-    # info = @benchmark DirectTrajectoryOptimization.eval_jac!($j, $idx_j, $cons, $x, $u)
+    # info = @benchmark DirectTrajectoryOptimization.eval_jac!($j, $idx_j, $cons, $x, $u, $w)
 
     dct = [-I zeros(nx, nu); I zeros(nx, nu)]
     dcT = Diagonal(ones(nx))

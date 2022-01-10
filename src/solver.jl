@@ -31,48 +31,45 @@
     # timing_statistics = :no
 end
 
-struct Solver{T}
-    p::Problem{T}
-    nlp_bounds::Vector{MOI.NLPBoundsPair}
-    block_data::MOI.NLPBlockData
-    solver::Ipopt.Optimizer
-    z::Vector{MOI.VariableIndex}
-end
+# struct Solver{T}
+#     p::Problem{T}
+#     nlp_bounds::Vector{MOI.NLPBoundsPair}
+#     block_data::MOI.NLPBlockData
+#     solver::Ipopt.Optimizer
+#     z::Vector{MOI.VariableIndex}
+# end
 
-function Solver(trajopt::TrajectoryOptimizationProblem; eval_hess=false, options=Options()) 
-    p = Problem(trajopt, eval_hess=eval_hess) 
+# function Solver(trajopt::TrajectoryOptimizationProblem; eval_hess=false, options=Options()) 
+#     p = Problem(trajopt, eval_hess=eval_hess) 
     
-    nlp_bounds = MOI.NLPBoundsPair.(p.con_bnds...)
-    block_data = MOI.NLPBlockData(nlp_bounds, p, true)
+#     nlp_bounds = MOI.NLPBoundsPair.(p.con_bnds...)
+#     block_data = MOI.NLPBlockData(nlp_bounds, p, true)
     
-    # instantiate NLP solver
-    solver = Ipopt.Optimizer()
+#     # instantiate NLP solver
+#     solver = Ipopt.Optimizer()
 
-    # set NLP solver options
-    for name in fieldnames(typeof(options))
-        solver.options[String(name)] = getfield(options, name)
-    end
+#     # set NLP solver options
+#     for name in fieldnames(typeof(options))
+#         solver.options[String(name)] = getfield(options, name)
+#     end
     
-    z = MOI.add_variables(solver, p.num_var)
+#     z = MOI.add_variables(solver, p.num_var)
     
-    for i = 1:p.num_var
-        MOI.add_constraint(solver, z[i], MOI.LessThan(p.var_bnds[2][i]))
-        MOI.add_constraint(solver, z[i], MOI.GreaterThan(p.var_bnds[1][i]))
-    end
+#     for i = 1:p.num_var
+#         MOI.add_constraint(solver, z[i], MOI.LessThan(p.var_bnds[2][i]))
+#         MOI.add_constraint(solver, z[i], MOI.GreaterThan(p.var_bnds[1][i]))
+#     end
     
-    MOI.set(solver, MOI.NLPBlock(), block_data)
-    MOI.set(solver, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+#     MOI.set(solver, MOI.NLPBlock(), block_data)
+#     MOI.set(solver, MOI.ObjectiveSense(), MOI.MIN_SENSE)
     
-    return Solver(p, nlp_bounds, block_data, solver, z) 
-end
+#     return Solver(p, nlp_bounds, block_data, solver, z) 
+# end
 
-function initialize!(s::Solver, z) 
-    for i = 1:s.p.num_var
-        MOI.set(s.solver, MOI.VariablePrimalStart(), s.z[i], z[i])
-    end
-end
+# function initialize!(s::Solver, z) 
+#     for i = 1:s.p.num_var
+#         MOI.set(s.solver, MOI.VariablePrimalStart(), s.z[i], z[i])
+#     end
+# end
 
-function solve!(s::Solver) 
-    MOI.optimize!(s.solver) 
-end
 

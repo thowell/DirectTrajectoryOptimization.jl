@@ -84,7 +84,6 @@
 
     dt = Dynamics(midpoint_implicit, nx, nx, nu, nw=nw)
     dyn = [dt for t = 1:T-1] 
-    model = DynamicsModel(dyn, w_dim=w_dim)
 
     # initial state 
     x1 = [0.0; 0.0; 0.0; 0.0] 
@@ -98,34 +97,34 @@
     # objective 
     ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
-    ct = Cost(ot, nx, nu, nw, [t for t = 1:T-1])
-    cT = Cost(oT, nx, 0, nw, [T])
-    obj = [ct, cT]
+    ct = Cost(ot, nx, nu, nw)
+    cT = Cost(oT, nx, 0, nw)
+    obj = [[ct for t = 1:T-1]..., cT]
 
     # constraints
-    x_init = Bound(nx, nu, [1], xl=x1, xu=x1)
-    x_goal = Bound(nx, 0, [T], xl=xT, xu=xT)
-    # u_limits = Bound(nx, nu, [t for t = 1:T-1], ul=-5.0 * ones(nu), uu=5.0 * ones(nu))
-    cons = ConstraintSet([x_init, x_goal, 
-    # u_limits
-    ], [StageConstraint()])
+    bnd1 = Bound(nx, nu, xl=x1, xu=x1)
+    bndt = Bound(nx, nu)
+    bndT = Bound(nx, 0, xl=xT, xu=xT)
+    bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
+
+    cons = [Constraint() for t = 1:T]
+
 
     # problem 
-    trajopt = TrajectoryOptimizationProblem(obj, model, cons)
-    s = Solver(trajopt)
+    p = ProblemData(obj, dyn, cons, bnds)
 
     # initialize
-    z0 = 0.001 * randn(s.p.num_var)
-    for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
-        z0[idx] = x_interpolation[t]
-    end
-    initialize!(s, z0)
+    initialize_states!(p, x_interpolation)
+    initialize_controls!(p, [randn(nu) for t = 1:T-1])
 
     # solve
-    solve!(s)
+    solve!(p)
 
-    @test norm(trajopt.x[1] - x1) < 1.0e-3
-    @test norm(trajopt.x[T] - xT) < 1.0e-3
+    # solution 
+    x_sol, u_sol = get_trajectory(p) 
+
+    @test norm(x_sol[1] - x1) < 1.0e-3
+    @test norm(x_sol[T] - xT) < 1.0e-3
 end
 
 @testset "Solve: user-provided dynamics gradients" begin 
@@ -172,7 +171,6 @@ end
     # ## model
     dt = Dynamics(di_func, diz_func, nx, nx, nu)
     dyn = [dt for t = 1:T-1] 
-    model = DynamicsModel(dyn)
 
     # ## initialization
     x1 = [0.0; 0.0] 
@@ -181,35 +179,33 @@ end
     # ## objective 
     ot = (x, u, w) -> 0.1 * dot(x, x) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x, x)
-    ct = Cost(ot, nx, nu, nw, [t for t = 1:T-1])
-    cT = Cost(oT, nx, 0, nw, [T])
-    obj = [ct, cT]
+    ct = Cost(ot, nx, nu, nw)
+    cT = Cost(oT, nx, 0, nw)
+    obj = [[ct for t = 1:T-1]..., cT]
 
     # ## constraints
-    x_init = Bound(nx, nu, [1], xl=x1, xu=x1)
-    x_goal = Bound(nx, 0, [T], xl=xT, xu=xT)
-    cons = ConstraintSet([x_init, x_goal], [StageConstraint()])
+    bnd1 = Bound(nx, nu, xl=x1, xu=x1)
+    bndt = Bound(nx, nu)
+    bndT = Bound(nx, 0, xl=xT, xu=xT)
+    bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
+
+    cons = [Constraint() for t = 1:T]
 
     # ## problem 
-    trajopt = TrajectoryOptimizationProblem(obj, model, cons)
-    s = Solver(trajopt, options=Options())
+    p = ProblemData(obj, dyn, cons, bnds, options=Options())
 
     # ## initialize
     x_interpolation = linear_interpolation(x1, xT, T)
     u_guess = [1.0 * randn(nu) for t = 1:T-1]
-    z0 = zeros(s.p.num_var)
-    for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
-        z0[idx] = x_interpolation[t]
-    end
-    for (t, idx) in enumerate(s.p.trajopt.model.idx.u)
-        z0[idx] = u_guess[t]
-    end
-    initialize!(s, z0)
+
+    initialize_states!(p, x_interpolation)
+    initialize_controls!(p, u_guess)
 
     # ## solve
-    solve!(s)
+    solve!(p)
 
     # ## solution
-    @test norm(trajopt.x[1] - x1) < 1.0e-3
-    @test norm(trajopt.x[T] - xT) < 1.0e-3
+    x_sol, u_sol = get_trajectory(p)
+    @test norm(x_sol[1] - x1) < 1.0e-3
+    @test norm(x_sol[T] - xT) < 1.0e-3
 end

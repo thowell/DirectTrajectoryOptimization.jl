@@ -10,26 +10,27 @@ const MOI = MathOptInterface
 
 include("objective.jl")
 include("constraints.jl")
+include("bounds.jl")
 include("dynamics.jl")
-include("problem.jl")
-include("moi.jl")
 include("solver.jl")
+include("data.jl")
+include("moi.jl")
 include("utils.jl")
 
 # objective 
 export Cost
 
 # constraints 
-export Bound, StageConstraint, ConstraintSet
+export Bound, Bounds, Constraint, Constraints
 
 # dynamics 
-export Dynamics, DynamicsModel
+export Dynamics
 
 # problem 
-export TrajectoryOptimizationProblem
+export ProblemData
 
 # solver 
-export Solver, Options, initialize!, solve!
+export Solver, Options, initialize_states!, initialize_controls!, solve!, get_trajectory
 
 # utils 
 export linear_interpolation

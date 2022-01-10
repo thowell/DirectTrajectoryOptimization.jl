@@ -1,4 +1,4 @@
-struct Dynamics{T} <: Constraint
+struct Dynamics{T}
     val 
     jac
     hess
@@ -163,40 +163,46 @@ function xuy_indices(cons::Vector{Dynamics{T}}) where T
     [collect((t > 1 ? sum([cons[s].nx + cons[s].nu for s = 1:(t-1)]) : 0) .+ (1:(+ cons[t].nx + cons[t].nu + cons[t].ny))) for t = 1:length(cons)]
 end
 
-struct DynamicsIndices 
-    x::Vector{Vector{Int}}
-    u::Vector{Vector{Int}}
-    xu::Vector{Vector{Int}}
-    xuy::Vector{Vector{Int}}
+# struct DynamicsIndices 
+#     x::Vector{Vector{Int}}
+#     u::Vector{Vector{Int}}
+#     xu::Vector{Vector{Int}}
+#     xuy::Vector{Vector{Int}}
+# end
+
+# struct DynamicsDimensions
+#     x::Vector{Int} 
+#     u::Vector{Int}
+#     w::Vector{Int}
+# end
+
+# function DynamicsDimensions(cons::Vector{Dynamics{T}}; 
+#     w_dim=[0 for t = 1:(length(cons) + 1)]) where T 
+#     x_dim = [[con.nx for con in cons]..., cons[end].ny]
+#     u_dim = [con.nu for con in cons] 
+#     return DynamicsDimensions(x_dim, u_dim, w_dim)
+# end
+
+function dimensions(dyn::Vector{Dynamics{T}}; w=[0 for t = 1:(length(dyn) + 1)]) where T 
+    x = [[d.nx for d in dyn]..., dyn[end].ny]
+    u = [[d.nu for d in dyn]..., 0]
+    return x, u, w
 end
 
-struct DynamicsDimensions
-    x::Vector{Int} 
-    u::Vector{Int}
-    w::Vector{Int}
-end
+# struct DynamicsModel{T}
+#     dyn::Vector{Dynamics{T}}
+#     idx::DynamicsIndices 
+#     dim::DynamicsDimensions
+# end
 
-function DynamicsDimensions(cons::Vector{Dynamics{T}}; 
-    w_dim=[0 for t = 1:(length(cons) + 1)]) where T 
-    x_dim = [[con.nx for con in cons]..., cons[end].ny]
-    u_dim = [con.nu for con in cons] 
-    return DynamicsDimensions(x_dim, u_dim, w_dim)
-end
-
-struct DynamicsModel{T}
-    dyn::Vector{Dynamics{T}}
-    idx::DynamicsIndices 
-    dim::DynamicsDimensions
-end
-
-function DynamicsModel(cons::Vector{Dynamics{T}};
-    w_dim=[0 for t = 1:(length(cons) + 1)]) where T
-    idx = DynamicsIndices(
-            x_indices(cons),
-            u_indices(cons),
-            xu_indices(cons),
-            xuy_indices(cons))
-    dim = DynamicsDimensions(cons, w_dim=w_dim)
-    DynamicsModel(cons, idx, dim)
-end
+# function DynamicsModel(cons::Vector{Dynamics{T}};
+#     w_dim=[0 for t = 1:(length(cons) + 1)]) where T
+#     idx = DynamicsIndices(
+#             x_indices(cons),
+#             u_indices(cons),
+#             xu_indices(cons),
+#             xuy_indices(cons))
+#     dim = DynamicsDimensions(cons, w_dim=w_dim)
+#     DynamicsModel(cons, idx, dim)
+# end
 
