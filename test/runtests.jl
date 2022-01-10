@@ -4,6 +4,7 @@ using ForwardDiff
 using LinearAlgebra
 using SparseArrays
 using DirectTrajectoryOptimization
+const DTO = DirectTrajectoryOptimization
 
 include("objective.jl")
 include("dynamics.jl")

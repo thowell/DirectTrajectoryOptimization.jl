@@ -85,12 +85,14 @@ function eval_jac!(j, idx, cons::Vector{Dynamics{T}}, x, u, w) where T
         fill!(con.jac_cache, 0.0) # TODO: confirm this is necessary
     end
 end
-
+isempty(ones(1))
 function eval_hess_lag!(h, idx, cons::Vector{Dynamics{T}}, x, u, w, λ) where T
     for (t, con) in enumerate(cons) 
-        con.hess(con.hess_cache, x[t+1], x[t], u[t], w[t], λ[t])
-        @views h[idx[t]] .+= con.hess_cache
-        fill!(con.hess_cache, 0.0) # TODO: confirm this is necessary
+        if !isempty(con.hess_cache)
+            con.hess(con.hess_cache, x[t+1], x[t], u[t], w[t], λ[t])
+            @views h[idx[t]] .+= con.hess_cache
+            fill!(con.hess_cache, 0.0) # TODO: confirm this is necessary
+        end
     end
 end
 

@@ -209,3 +209,69 @@ end
     @test norm(x_sol[1] - x1) < 1.0e-3
     @test norm(x_sol[T] - xT) < 1.0e-3
 end
+
+@testset "Solve: general constraint" begin 
+    # ## 
+    eval_hess = true 
+
+    # ## horizon 
+    T = 11 
+
+    # ## double integrator 
+    nx = 2
+    nu = 1 
+    nw = 0 
+
+    function double_integrator(y, x, u, w)
+        A = [1.0 1.0; 0.0 1.0] 
+        B = [0.0; 1.0] 
+        y - (A * x + B * u[1])
+    end
+
+    # ## model
+    dt = Dynamics(double_integrator, nx, nx, nu, eval_hess=eval_hess)
+    dyn = [dt for t = 1:T-1] 
+    dyn[1].hess_cache
+
+    # ## initialization
+    x1 = [0.0; 0.0] 
+    xT = [1.0; 0.0] 
+
+    # ## objective 
+    ot = (x, u, w) -> 0.1 * dot(x, x) + 0.1 * dot(u, u)
+    oT = (x, u, w) -> 0.1 * dot(x, x)
+    ct = Cost(ot, nx, nu, nw, eval_hess=eval_hess)
+    cT = Cost(oT, nx, 0, nw, eval_hess=eval_hess)
+    obj = [[ct for t = 1:T-1]..., cT]
+
+    # ## constraints
+    bnd1 = Bound(nx, nu, xl=x1, xu=x1)
+    bndt = Bound(nx, nu)
+    bndT = Bound(nx, 0)#, xl=xT, xu=xT)
+    bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
+
+    cons = [Constraint() for t = 1:T]
+
+    gc = GeneralConstraint((z, w) -> z[(end-1):end] - xT, nx * T + nu * (T-1), 0, eval_hess=true)
+
+    # ## problem 
+    p = ProblemData(obj, dyn, cons, bnds, 
+        general_constraint=gc,
+        eval_hess=true,
+        options=Options())
+
+    # ## initialize
+    x_interpolation = linear_interpolation(x1, xT, T)
+    u_guess = [1.0 * randn(nu) for t = 1:T-1]
+
+    initialize_states!(p, x_interpolation)
+    initialize_controls!(p, u_guess)
+
+    # ## solve
+    solve!(p)
+
+    # ## solution
+    x_sol, u_sol = get_trajectory(p)
+    @test norm(x_sol[1] - x1) < 1.0e-3
+    @test norm(x_sol[T] - xT) < 1.0e-3
+end

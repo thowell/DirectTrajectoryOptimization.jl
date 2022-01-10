@@ -1,5 +1,5 @@
 @testset "Hessian of Lagrangian" begin
-    MOI = DirectTrajectoryOptimization.MOI
+    MOI = DTO.MOI
     # horizon 
     T = 3
 
@@ -112,8 +112,8 @@
     cons = [[cont for t = 1:T-1]..., conT]
 
     # data 
-    # trajopt = DirectTrajectoryOptimization.TrajectoryOptimizationData(obj, dyn, cons, bnds)
-    # nlp = DirectTrajectoryOptimization.NLPData(trajopt, eval_hess=true)
+    # trajopt = DTO.TrajectoryOptimizationData(obj, dyn, cons, bnds)
+    # nlp = DTO.NLPData(trajopt, eval_hess=true)
     p = ProblemData(obj, dyn, cons, bnds, eval_hess=true)
 
     # Lagrangian
@@ -159,22 +159,22 @@
 
     σ = 1.0
     fill!(h0, 0.0)
-    DirectTrajectoryOptimization.trajectory!(p.nlp.trajopt.x, p.nlp.trajopt.u, z0[1:np], 
+    DTO.trajectory!(p.nlp.trajopt.x, p.nlp.trajopt.u, z0[1:np], 
         p.nlp.idx.x, p.nlp.idx.u)
-    DirectTrajectoryOptimization.duals!(p.nlp.trajopt.λ_dyn, p.nlp.trajopt.λ_stage, z0[np .+ (1:nd)], p.nlp.idx.dyn_con, p.nlp.idx.stage_con)
-    DirectTrajectoryOptimization.eval_obj_hess!(h0, p.nlp.idx.obj_hess, p.nlp.trajopt.obj, p.nlp.trajopt.x, p.nlp.trajopt.u, p.nlp.trajopt.w, σ)
-    DirectTrajectoryOptimization.eval_hess_lag!(h0, p.nlp.idx.dyn_hess, p.nlp.trajopt.dyn, p.nlp.trajopt.x, p.nlp.trajopt.u, p.nlp.trajopt.w, p.nlp.trajopt.λ_dyn)
-    DirectTrajectoryOptimization.eval_hess_lag!(h0, p.nlp.idx.stage_hess, p.nlp.trajopt.cons, p.nlp.trajopt.x, p.nlp.trajopt.u, p.nlp.trajopt.w, p.nlp.trajopt.λ_stage)
+    DTO.duals!(p.nlp.trajopt.λ_dyn, p.nlp.trajopt.λ_stage, p.nlp.λ_gen, z0[np .+ (1:nd)], p.nlp.idx.dyn_con, p.nlp.idx.stage_con, p.nlp.idx.gen_con)
+    DTO.eval_obj_hess!(h0, p.nlp.idx.obj_hess, p.nlp.trajopt.obj, p.nlp.trajopt.x, p.nlp.trajopt.u, p.nlp.trajopt.w, σ)
+    DTO.eval_hess_lag!(h0, p.nlp.idx.dyn_hess, p.nlp.trajopt.dyn, p.nlp.trajopt.x, p.nlp.trajopt.u, p.nlp.trajopt.w, p.nlp.trajopt.λ_dyn)
+    DTO.eval_hess_lag!(h0, p.nlp.idx.stage_hess, p.nlp.trajopt.cons, p.nlp.trajopt.x, p.nlp.trajopt.u, p.nlp.trajopt.w, p.nlp.trajopt.λ_stage)
 
-    sp_obj_hess = DirectTrajectoryOptimization.sparsity_hessian(obj, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
-    sp_dyn_hess = DirectTrajectoryOptimization.sparsity_hessian(dyn, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
-    sp_con_hess = DirectTrajectoryOptimization.sparsity_hessian(cons, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
+    sp_obj_hess = DTO.sparsity_hessian(obj, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
+    sp_dyn_hess = DTO.sparsity_hessian(dyn, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
+    sp_con_hess = DTO.sparsity_hessian(cons, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
     sp_hess = collect([sp_obj_hess..., sp_dyn_hess..., sp_con_hess...]) 
     sp_key = sort(unique(sp_hess))
 
-    idx_obj_hess = DirectTrajectoryOptimization.hessian_indices(obj, sp_key, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
-    idx_dyn_hess = DirectTrajectoryOptimization.hessian_indices(dyn, sp_key, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
-    idx_con_hess = DirectTrajectoryOptimization.hessian_indices(cons, sp_key, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
+    idx_obj_hess = DTO.hessian_indices(obj, sp_key, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
+    idx_dyn_hess = DTO.hessian_indices(dyn, sp_key, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
+    idx_con_hess = DTO.hessian_indices(cons, sp_key, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
 
     # indices
     @test sp_key[vcat(idx_obj_hess...)] == sp_obj_hess

@@ -37,24 +37,30 @@ struct TrajectoryOptimizationIndices
     stage_con::Vector{Vector{Int}} 
     stage_jac::Vector{Vector{Int}} 
     stage_hess::Vector{Vector{Int}}
+    gen_con::Vector{Int}
+    gen_jac::Vector{Int}
+    gen_hess::Vector{Int}
     x::Vector{Vector{Int}}
     u::Vector{Vector{Int}}
     xu::Vector{Vector{Int}}
     xuy::Vector{Vector{Int}}
 end
 
-function indices(obj::Objective{T}, dyn::Vector{Dynamics{T}}, cons::Constraints{T}, key::Vector{Tuple{Int,Int}},
-        nx::Vector{Int}, nu::Vector{Int}) where T 
+function indices(obj::Objective{T}, dyn::Vector{Dynamics{T}}, cons::Constraints{T}, gc::GeneralConstraint{T},
+     key::Vector{Tuple{Int,Int}}, nx::Vector{Int}, nu::Vector{Int}, nz::Int) where T 
     # Jacobians
     dyn_con = constraint_indices(dyn, shift=0)
     dyn_jac = jacobian_indices(dyn, shift=0)
     stage_con = constraint_indices(cons, shift=num_con(dyn))
     stage_jac = jacobian_indices(cons, shift=num_jac(dyn)) 
+    gen_con = constraint_indices(gc, shift=(num_con(dyn) + num_con(cons)))
+    gen_jac = jacobian_indices(gc, shift=(num_jac(dyn) + num_jac(cons))) 
 
     # Hessian of Lagrangian 
     obj_hess = hessian_indices(obj, key, nx, nu)
     dyn_hess = hessian_indices(dyn, key, nx, nu)
     stage_hess = hessian_indices(cons, key, nx, nu)
+    gen_hess = hessian_indices(gc, key, nz)
 
     # indices
     x_idx = x_indices(dyn)
@@ -62,7 +68,11 @@ function indices(obj::Objective{T}, dyn::Vector{Dynamics{T}}, cons::Constraints{
     xu_idx = xu_indices(dyn)
     xuy_idx = xuy_indices(dyn)
 
-    return TrajectoryOptimizationIndices(obj_hess, dyn_con, dyn_jac, dyn_hess, stage_con, stage_jac, stage_hess,
+    return TrajectoryOptimizationIndices(
+        obj_hess, 
+        dyn_con, dyn_jac, dyn_hess, 
+        stage_con, stage_jac, stage_hess,
+        gen_con, gen_jac, gen_hess,
         x_idx, u_idx, xu_idx, xuy_idx) 
 end
 
@@ -78,6 +88,9 @@ struct NLPData{T} <: MOI.AbstractNLPEvaluator
     sp_jac
     sp_hess_lag
     hess_lag::Bool 
+    gc::GeneralConstraint{T}
+    w::Vector{T}
+    λ_gen::Vector{T}
 end
 
 function primal_bounds(bnds::Bounds{T}, nz::Int, x_idx::Vector{Vector{Int}}, u_idx::Vector{Vector{Int}}) where T 
@@ -91,27 +104,39 @@ function primal_bounds(bnds::Bounds{T}, nz::Int, x_idx::Vector{Vector{Int}}, u_i
     return zl, zu
 end
 
-function constraint_bounds(cons::Constraints{T}, nc::Int, idx::TrajectoryOptimizationIndices) where T
+function constraint_bounds(cons::Constraints{T}, gc::GeneralConstraint{T}, 
+    nc_dyn::Int, nc_con::Int, idx::TrajectoryOptimizationIndices) where T
+    # total constraints
+    nc = nc_dyn + nc_con + gc.nc 
+    # bounds
     cl, cu = zeros(nc), zeros(nc) 
+    # stage
     for (t, con) in enumerate(cons) 
         cl[idx.stage_con[t][con.idx_ineq]] .= -Inf
     end
+    # general
+    cl[collect(nc_dyn + nc_con .+ gc.idx_ineq)] .= -Inf
     return cl, cu
 end 
 
-function NLPData(trajopt::TrajectoryOptimizationData; eval_hess=false) 
+function NLPData(trajopt::TrajectoryOptimizationData; 
+    eval_hess=false, 
+    general_constraint=GeneralConstraint()) 
+
     # number of variables
     nz = sum(trajopt.x_dim) + sum(trajopt.u_dim)
 
     # number of constraints
     nc_dyn = num_con(trajopt.dyn)
     nc_con = num_con(trajopt.cons)  
-    nc = nc_dyn + nc_con
+    nc_gen = num_con(general_constraint)
+    nc = nc_dyn + nc_con + nc_gen
 
     # number of nonzeros in constraint Jacobian
     nj_dyn = num_jac(trajopt.dyn)
     nj_con = num_jac(trajopt.cons)  
-    nj = nj_dyn + nj_con
+    nj_gen = num_jac(general_constraint)
+    nj = nj_dyn + nj_con + nj_gen
 
     # number of nonzeros in Hessian of Lagrangian
     nh = 0
@@ -119,27 +144,39 @@ function NLPData(trajopt::TrajectoryOptimizationData; eval_hess=false)
     # constraint Jacobian sparsity
     sp_dyn = sparsity_jacobian(trajopt.dyn, trajopt.x_dim, trajopt.u_dim, row_shift=0)
     sp_con = sparsity_jacobian(trajopt.cons, trajopt.x_dim, trajopt.u_dim, row_shift=nc_dyn)
-    sp_jac = collect([sp_dyn..., sp_con...]) 
+    sp_gen = sparsity_jacobian(general_constraint, nz, row_shift=(nc_dyn + nc_con))
+    sp_jac = collect([sp_dyn..., sp_con..., sp_gen...]) 
 
     # Hessian of Lagrangian sparsity 
     sp_obj_hess = sparsity_hessian(trajopt.obj, trajopt.x_dim, trajopt.u_dim)
     sp_dyn_hess = sparsity_hessian(trajopt.dyn, trajopt.x_dim, trajopt.u_dim)
     sp_con_hess = sparsity_hessian(trajopt.cons, trajopt.x_dim, trajopt.u_dim)
-    sp_hess_lag = [sp_obj_hess..., sp_dyn_hess..., sp_con_hess...]
+    sp_gen_hess = sparsity_hessian(general_constraint, nz)
+    sp_hess_lag = [sp_obj_hess..., sp_dyn_hess..., sp_con_hess..., sp_gen_hess...]
     sp_hess_lag = !isempty(sp_hess_lag) ? sp_hess_lag : Tuple{Int,Int}[]
     sp_hess_key = sort(unique(sp_hess_lag))
-    # sp_hess_status = [!isempty(sp_obj_hess), !isempty(sp_dyn_hess), !isempty(sp_con_hess)]
 
     # indices 
-    idx = indices(trajopt.obj, trajopt.dyn, trajopt.cons, sp_hess_key, trajopt.x_dim, trajopt.u_dim)
+    idx = indices(trajopt.obj, trajopt.dyn, trajopt.cons, 
+        general_constraint, 
+        sp_hess_key, 
+        trajopt.x_dim, trajopt.u_dim, nz)
 
     # primal variable bounds
     zl, zu = primal_bounds(trajopt.bnds, nz, idx.x, idx.u) 
 
     # nonlinear constraint bounds
-    cl, cu = constraint_bounds(trajopt.cons, nc, idx) 
+    cl, cu = constraint_bounds(trajopt.cons, general_constraint, nc_dyn, nc_con, idx) 
 
-    NLPData(trajopt, nz, nc, nj, nh, [zl, zu], [cl, cu], idx, sp_jac, sp_hess_key, eval_hess)
+    NLPData(trajopt, 
+        nz, nc, nj, nh, 
+        [zl, zu], [cl, cu], 
+        idx, 
+        sp_jac, sp_hess_key,
+        eval_hess, 
+        general_constraint,
+        vcat(trajopt.w...),
+        zeros(general_constraint.nc))
 end
 
 struct SolverData 
@@ -186,14 +223,15 @@ function trajectory!(x::Vector{Vector{T}}, u::Vector{Vector{T}}, z::Vector{T},
     end
 end
 
-function duals!(λ_dyn::Vector{Vector{T}}, λ_stage::Vector{Vector{T}}, λ, 
-    idx_dyn::Vector{Vector{Int}}, idx_stage::Vector{Vector{Int}}) where T
+function duals!(λ_dyn::Vector{Vector{T}}, λ_stage::Vector{Vector{T}}, λ_gen::Vector{T}, λ, 
+    idx_dyn::Vector{Vector{Int}}, idx_stage::Vector{Vector{Int}}, idx_gen::Vector{Int}) where T
     for (t, idx) in enumerate(idx_dyn)
         λ_dyn[t] .= @views λ[idx]
     end 
     for (t, idx) in enumerate(idx_stage)
         λ_stage[t] .= @views λ[idx]
     end
+    λ_gen .= λ[idx_gen]
 end
 
 struct ProblemData{T} <: MOI.AbstractNLPEvaluator
@@ -202,11 +240,13 @@ struct ProblemData{T} <: MOI.AbstractNLPEvaluator
 end
 
 function ProblemData(obj::Objective{T}, dyn::Vector{Dynamics{T}}, cons::Constraints{T}, bnds::Bounds{T}; 
-    eval_hess=false, options=Options(),
+    eval_hess=false, 
+    general_constraint=GeneralConstraint(),
+    options=Options(),
     w=[[zeros(nw) for nw in dimensions(dyn)[3]]..., zeros(0)]) where T
 
     trajopt = TrajectoryOptimizationData(obj, dyn, cons, bnds, w=w)
-    nlp = NLPData(trajopt, eval_hess=eval_hess) 
+    nlp = NLPData(trajopt, general_constraint=general_constraint, eval_hess=eval_hess) 
     s_data = SolverData(nlp, options=options)
 
     ProblemData(nlp, s_data) 
@@ -237,48 +277,3 @@ end
 function solve!(p::ProblemData) 
     MOI.optimize!(p.s_data.solver) 
 end
-
-# struct Solver{T}
-#     p::Problem{T}
-#     nlp_bounds::Vector{MOI.NLPBoundsPair}
-#     block_data::MOI.NLPBlockData
-#     solver::Ipopt.Optimizer
-#     z::Vector{MOI.VariableIndex}
-# end
-
-# function Solver(trajopt::TrajectoryOptimizationProblem; eval_hess=false, options=Options()) 
-#     p = Problem(trajopt, eval_hess=eval_hess) 
-    
-#     nlp_bounds = MOI.NLPBoundsPair.(p.con_bnds...)
-#     block_data = MOI.NLPBlockData(nlp_bounds, NLPEvaluator(), true)
-    
-#     # instantiate NLP solver
-#     solver = Ipopt.Optimizer()
-
-#     # set NLP solver options
-#     for name in fieldnames(typeof(options))
-#         solver.options[String(name)] = getfield(options, name)
-#     end
-    
-#     z = MOI.add_variables(solver, nz)
-    
-#     for i = 1:p.num_var
-#         MOI.add_constraint(solver, z[i], MOI.LessThan(p.var_bnds[2][i]))
-#         MOI.add_constraint(solver, z[i], MOI.GreaterThan(p.var_bnds[1][i]))
-#     end
-    
-#     MOI.set(solver, MOI.NLPBlock(), block_data)
-#     MOI.set(solver, MOI.ObjectiveSense(), MOI.MIN_SENSE)
-    
-#     return Solver(p, nlp_bounds, block_data, solver, z) 
-# end
-
-# using MathOptInterface
-# const MOI = MathOptInterface
-
-# MOI.AbstractNLPEvaluator
-
-# nlp_bounds = MOI.NLPBoundsPair.([-ones(10), ones(10)]...)
-
-# struct MOIEval <: MOI.AbstractNLPEvaluator end
-# block_data = MOI.NLPBlockData(nlp_bounds, a(), true)

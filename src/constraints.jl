@@ -67,9 +67,11 @@ end
 
 function eval_hess_lag!(h, idx, cons::Constraints{T}, x, u, w, λ) where T
     for (t, con) in enumerate(cons)
-        con.hess(con.hess_cache, x[t], u[t], w[t], λ[t])
-        @views h[idx[t]] .+= con.hess_cache
-        fill!(con.hess_cache, 0.0) # TODO: confirm this is necessary
+        if !isempty(con.hess_cache)
+            con.hess(con.hess_cache, x[t], u[t], w[t], λ[t])
+            @views h[idx[t]] .+= con.hess_cache
+            fill!(con.hess_cache, 0.0) # TODO: confirm this is necessary
+        end
     end
 end
 
@@ -134,15 +136,3 @@ function hessian_indices(cons::Constraints{T}, key::Vector{Tuple{Int,Int}}, nx::
     end
     return idx
 end
-
-# struct ConstraintSet{T} 
-#     bounds::Bounds{T}
-#     stage::Constraints{T} 
-# end
-
-# ConstraintSet() = ConstraintSet([Bound()], [Constraint()]) 
-# ConstraintSet(stage::Constraints{T}) where T = ConstraintSet([Bound()], stage) 
-# ConstraintSet(bounds::Bounds{T}) where T = ConstraintSet(bounds, [Constraint()]) 
-
-# num_con(cons::ConstraintSet{T}) where T = sum([con.nc * length(con.idx) for con in cons.stage])
-# num_jac(cons::ConstraintSet{T}) where T = sum([con.nj * length(con.idx) for con in cons.stage])

@@ -27,11 +27,11 @@
     X = [x1 for t = 1:T]
     U = [u1 for t = 1:T]
     W = [w1 for t = 1:T]
-    idx_dyn = DirectTrajectoryOptimization.constraint_indices(dyn)
-    idx_jac = DirectTrajectoryOptimization.jacobian_indices(dyn)
+    idx_dyn = DTO.constraint_indices(dyn)
+    idx_jac = DTO.jacobian_indices(dyn)
 
-    d = zeros(DirectTrajectoryOptimization.num_con(dyn))
-    j = zeros(DirectTrajectoryOptimization.num_jac(dyn))
+    d = zeros(DTO.num_con(dyn))
+    j = zeros(DTO.num_jac(dyn))
 
     dt.val(dt.val_cache, x1, x1, u1, w1) 
     # @benchmark $dt.val($dt.val_cache, $x1, $x1, $u1, $w1) 
@@ -44,31 +44,31 @@
     jac_fd = ForwardDiff.jacobian(a -> euler_implicit(a[nx + nu .+ (1:nx)], a[1:nx], a[nx .+ (1:nu)], w1), [x1; u1; x1])
     @test norm(jac_dense - jac_fd) < 1.0e-8
 
-    DirectTrajectoryOptimization.eval_con!(d, idx_dyn, dyn, X, U, W)
+    DTO.eval_con!(d, idx_dyn, dyn, X, U, W)
     @test norm(vcat(d...) - vcat([euler_implicit(X[t+1], X[t], U[t], W[t]) for t = 1:T-1]...)) < 1.0e-8
-    # info = @benchmark DirectTrajectoryOptimization.eval_con!($d, $idx_dyn, $dyn, $X, $U, $W) 
+    # info = @benchmark DTO.eval_con!($d, $idx_dyn, $dyn, $X, $U, $W) 
 
-    DirectTrajectoryOptimization.eval_jac!(j, idx_jac, dyn, X, U, W) 
-    s = DirectTrajectoryOptimization.sparsity_jacobian(dyn, DirectTrajectoryOptimization.dimensions(dyn)[1:2]...)
-    jac_dense = zeros(DirectTrajectoryOptimization.num_con(dyn), DirectTrajectoryOptimization.num_xuy(dyn))
+    DTO.eval_jac!(j, idx_jac, dyn, X, U, W) 
+    s = DTO.sparsity_jacobian(dyn, DTO.dimensions(dyn)[1:2]...)
+    jac_dense = zeros(DTO.num_con(dyn), DTO.num_xuy(dyn))
     for (i, ji) in enumerate(j)
         jac_dense[s[i][1], s[i][2]] = ji
     end
 
     @test norm(jac_dense - [jac_fd zeros(dyn[2].nx, dyn[2].nu + dyn[2].ny); zeros(dyn[2].ny, dyn[1].nx + dyn[1].nu) jac_fd]) < 1.0e-8
-    # info = @benchmark DirectTrajectoryOptimization.eval_jac!($j, $idx_jac, $dyn, $X, $U, $W) 
+    # info = @benchmark DTO.eval_jac!($j, $idx_jac, $dyn, $X, $U, $W) 
 
-    x_idx = DirectTrajectoryOptimization.x_indices(dyn)
-    u_idx = DirectTrajectoryOptimization.u_indices(dyn)
-    xu_idx = DirectTrajectoryOptimization.xu_indices(dyn)
-    xuy_idx = DirectTrajectoryOptimization.xuy_indices(dyn)
+    x_idx = DTO.x_indices(dyn)
+    u_idx = DTO.u_indices(dyn)
+    xu_idx = DTO.xu_indices(dyn)
+    xuy_idx = DTO.xuy_indices(dyn)
 
     nz = sum([t < T ? dyn[t].nx : dyn[t-1].ny for t = 1:T]) + sum([dyn[t].nu for t = 1:T-1])
     z = rand(nz)
     x = [zero(z[x_idx[t]]) for t = 1:T]
     u = [[zero(z[u_idx[t]]) for t = 1:T-1]..., zeros(0)]
 
-    DirectTrajectoryOptimization.trajectory!(x, u, z, x_idx, u_idx)
+    DTO.trajectory!(x, u, z, x_idx, u_idx)
     z̄ = zero(z)
     for (t, idx) in enumerate(x_idx) 
         z̄[idx] .= x[t] 
@@ -78,6 +78,6 @@
     end
 
     @test norm(z - z̄) < 1.0e-8
-    # info = @benchmark DirectTrajectoryOptimization.trajectory!($x, $u, $z, $x_idx, $u_idx)
+    # info = @benchmark DTO.trajectory!($x, $u, $z, $x_idx, $u_idx)
 end
 

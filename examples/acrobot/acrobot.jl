@@ -4,9 +4,9 @@
 
 # ## Setup
 
-using DirectTrajectoryOptimization 
 using LinearAlgebra
 using Plots
+using DirectTrajectoryOptimization 
 
 # ## horizon 
 T = 101 
@@ -104,6 +104,34 @@ cons = [Constraint() for t = 1:T]
 
 # ## problem 
 p = ProblemData(obj, dyn, cons, bnds, options=Options())
+
+@variables z[1:p.nlp.num_var]
+
+function gen_con(z) 
+    z[1:2] - z[end-1:end]
+end
+
+gc = gen_con(z)
+jac = Symbolics.sparsejacobian(gc, z)
+gc_func = eval(Symbolics.build_function(gc, z)[2])
+gc_jac_func = eval(Symbolics.build_function(jac.nzval, z)[2])
+nc = length(gc) 
+nj = length(jac.nzval)
+sp_jac = [findnz(jac)[1:2]...]
+if false
+    @variables λ[1:nc]
+    lag_con = dot(λ, gc) 
+    hess = Symbolics.sparsehessian(lag_con, z)
+    hess_func = eval(Symbolics.build_function(hess.nzval, z, λ)[2])
+    sp_hess = [findnz(hess)[1:2]...]
+    nh = length(hess.nzval)
+else 
+    hess_func = Expr(:null) 
+    sp_hess = [Int[]]
+    nh = 0
+end
+
+
 
 # ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)

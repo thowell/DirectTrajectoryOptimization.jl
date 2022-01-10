@@ -29,10 +29,10 @@
     @test cT.val_cache[1] ≈ oT(x1, u1, w1)
     @test norm(cT.grad_cache - 20.0 * x1) < 1.0e-8
 
-    @test DirectTrajectoryOptimization.eval_obj(obj, X, U, X) - sum([ot(X[t], U[t], W[t]) for t = 1:T-1]) - oT(X[T], U[T], W[T]) ≈ 0.0
-    DirectTrajectoryOptimization.eval_obj_grad!(grad, idx_xu, obj, X, U, W) 
+    @test DTO.eval_obj(obj, X, U, X) - sum([ot(X[t], U[t], W[t]) for t = 1:T-1]) - oT(X[T], U[T], W[T]) ≈ 0.0
+    DTO.eval_obj_grad!(grad, idx_xu, obj, X, U, W) 
     @test norm(grad - vcat([[2.0 * x1; 0.2 * u1] for t = 1:T-1]..., 20.0 * x1)) < 1.0e-8
 
-    # info = @benchmark DirectTrajectoryOptimization.eval_obj($obj, $X, $U, $W)
-    # info = @benchmark DirectTrajectoryOptimization.eval_obj_grad!($grad, $idx_xu, $obj, $X, $U, $W)
+    # info = @benchmark DTO.eval_obj($obj, $X, $U, $W)
+    # info = @benchmark DTO.eval_obj_grad!($grad, $idx_xu, $obj, $X, $U, $W)
 end

@@ -11,6 +11,7 @@ const MOI = MathOptInterface
 include("objective.jl")
 include("constraints.jl")
 include("bounds.jl")
+include("general_constraint.jl")
 include("dynamics.jl")
 include("solver.jl")
 include("data.jl")
@@ -21,7 +22,7 @@ include("utils.jl")
 export Cost
 
 # constraints 
-export Bound, Bounds, Constraint, Constraints
+export Bound, Bounds, Constraint, Constraints, GeneralConstraint
 
 # dynamics 
 export Dynamics

@@ -17,26 +17,26 @@
     conT = Constraint(cT, nx, 0, 0)
 
     cons = [[cont for t = 1:T-1]..., conT]
-    nc = DirectTrajectoryOptimization.num_con(cons)
-    nj = DirectTrajectoryOptimization.num_jac(cons)
-    idx_c = DirectTrajectoryOptimization.constraint_indices(cons)
-    idx_j = DirectTrajectoryOptimization.jacobian_indices(cons)
+    nc = DTO.num_con(cons)
+    nj = DTO.num_jac(cons)
+    idx_c = DTO.constraint_indices(cons)
+    idx_j = DTO.jacobian_indices(cons)
     c = zeros(nc) 
     j = zeros(nj)
     cont.val(c[idx_c[1]], x[1], u[1], w[1])
     conT.val(c[idx_c[T]], x[T], u[T], w[T])
 
-    DirectTrajectoryOptimization.eval_con!(c, idx_c, cons, x, u, w)
-    # info = @benchmark DirectTrajectoryOptimization.eval_con!($c, $idx_c, $cons, $x, $u, $w)
+    DTO.eval_con!(c, idx_c, cons, x, u, w)
+    # info = @benchmark DTO.eval_con!($c, $idx_c, $cons, $x, $u, $w)
 
     @test norm(c - vcat([ct(x[t], u[t], w[t]) for t = 1:T-1]..., cT(x[T], u[T], w[T]))) < 1.0e-8
-    DirectTrajectoryOptimization.eval_jac!(j, idx_j, cons, x, u, w)
-    # info = @benchmark DirectTrajectoryOptimization.eval_jac!($j, $idx_j, $cons, $x, $u, $w)
+    DTO.eval_jac!(j, idx_j, cons, x, u, w)
+    # info = @benchmark DTO.eval_jac!($j, $idx_j, $cons, $x, $u, $w)
 
     dct = [-I zeros(nx, nu); I zeros(nx, nu)]
     dcT = Diagonal(ones(nx))
     dc = cat([dct for t = 1:T-1]..., dcT, dims=(1,2))
-    sp = DirectTrajectoryOptimization.sparsity_jacobian(cons, dim_x, dim_u) 
+    sp = DTO.sparsity_jacobian(cons, dim_x, dim_u) 
     j_dense = zeros(nc, sum(dim_x) + sum(dim_u)) 
     for (i, v) in enumerate(sp)
         j_dense[v[1], v[2]] = j[i]
