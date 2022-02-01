@@ -18,7 +18,7 @@ end
 
 Constraints{T} = Vector{Constraint{T}} where T
 
-function Constraint(f::Function, nx::Int, nu::Int, nw::Int; idx_ineq=collect(1:0), eval_hess=false)
+function Constraint(f::Function, nx::Int, nu::Int; nw::Int=0, idx_ineq=collect(1:0), eval_hess=false)
     #TODO: option to load/save methods
     @variables x[1:nx], u[1:nu], w[1:nw]
     val = f(x, u, w)

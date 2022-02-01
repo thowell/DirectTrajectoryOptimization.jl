@@ -31,45 +31,46 @@
     # timing_statistics = :no
 end
 
-# struct Solver{T}
-#     p::Problem{T}
-#     nlp_bounds::Vector{MOI.NLPBoundsPair}
-#     block_data::MOI.NLPBlockData
-#     solver::Ipopt.Optimizer
-#     z::Vector{MOI.VariableIndex}
-# end
+struct Solver{T} <: MOI.AbstractNLPEvaluator
+    nlp::NLPData{T}
+    s_data::SolverData
+end
 
-# function Solver(trajopt::TrajectoryOptimizationProblem; eval_hess=false, options=Options()) 
-#     p = Problem(trajopt, eval_hess=eval_hess) 
-    
-#     nlp_bounds = MOI.NLPBoundsPair.(p.con_bnds...)
-#     block_data = MOI.NLPBlockData(nlp_bounds, p, true)
-    
-#     # instantiate NLP solver
-#     solver = Ipopt.Optimizer()
+function solver(dyn::Vector{Dynamics{T}}, obj::Objective{T}, cons::Constraints{T}, bnds::Bounds{T}; 
+    options=Options{T}(),
+    w=[[zeros(nw) for nw in dimensions(dyn)[3]]..., zeros(0)],
+    eval_hess=false, 
+    general_constraint=GeneralConstraint()) where T
 
-#     # set NLP solver options
-#     for name in fieldnames(typeof(options))
-#         solver.options[String(name)] = getfield(options, name)
-#     end
-    
-#     z = MOI.add_variables(solver, p.num_var)
-    
-#     for i = 1:p.num_var
-#         MOI.add_constraint(solver, z[i], MOI.LessThan(p.var_bnds[2][i]))
-#         MOI.add_constraint(solver, z[i], MOI.GreaterThan(p.var_bnds[1][i]))
-#     end
-    
-#     MOI.set(solver, MOI.NLPBlock(), block_data)
-#     MOI.set(solver, MOI.ObjectiveSense(), MOI.MIN_SENSE)
-    
-#     return Solver(p, nlp_bounds, block_data, solver, z) 
-# end
+    trajopt = TrajectoryOptimizationData(obj, dyn, cons, bnds, w=w)
+    nlp = NLPData(trajopt, general_constraint=general_constraint, eval_hess=eval_hess) 
+    s_data = SolverData(nlp, options=options)
 
-# function initialize!(s::Solver, z) 
-#     for i = 1:s.p.num_var
-#         MOI.set(s.solver, MOI.VariablePrimalStart(), s.z[i], z[i])
-#     end
-# end
+    Solver(nlp, s_data) 
+end
 
+function initialize_states!(p::Solver, x) 
+    for (t, xt) in enumerate(x) 
+        n = length(xt)
+        for i = 1:n
+            MOI.set(p.s_data.solver, MOI.VariablePrimalStart(), p.s_data.z[p.nlp.idx.x[t][i]], xt[i])
+        end
+    end
+end 
 
+function initialize_controls!(p::Solver, u)
+    for (t, ut) in enumerate(u) 
+        m = length(ut) 
+        for j = 1:m
+            MOI.set(p.s_data.solver, MOI.VariablePrimalStart(), p.s_data.z[p.nlp.idx.u[t][j]], ut[j])
+        end
+    end
+end
+
+function get_trajectory(p::Solver) 
+    return p.nlp.trajopt.x, p.nlp.trajopt.u[1:end-1]
+end
+
+function solve!(p::Solver) 
+    MOI.optimize!(p.s_data.solver) 
+end

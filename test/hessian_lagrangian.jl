@@ -95,8 +95,8 @@
     # objective 
     ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
-    objt = Cost(ot, nx, nu, nw, eval_hess=true)
-    objT = Cost(oT, nx, 0, nw, eval_hess=true)
+    objt = Cost(ot, nx, nu, nw=nw, eval_hess=true)
+    objT = Cost(oT, nx, 0, nw=nw, eval_hess=true)
     obj = [[objt for t = 1:T-1]..., objT]
 
     # constraints
@@ -107,14 +107,14 @@
 
     ct = (x, u, w) -> [-5.0 * ones(nu) - cos.(u) .* sum(x.^2); cos.(x) .* tan.(u) - 5.0 * ones(nx)]
     cT = (x, u, w) -> sin.(x.^3.0)
-    cont = Constraint(ct, nx, nu, nw, idx_ineq=collect(1:(nu + nx)), eval_hess=true)
-    conT = Constraint(cT, nx, 0, nw, eval_hess=true)
+    cont = Constraint(ct, nx, nu, nw=nw, idx_ineq=collect(1:(nu + nx)), eval_hess=true)
+    conT = Constraint(cT, nx, 0, nw=nw, eval_hess=true)
     cons = [[cont for t = 1:T-1]..., conT]
 
     # data 
     # trajopt = DTO.TrajectoryOptimizationData(obj, dyn, cons, bnds)
     # nlp = DTO.NLPData(trajopt, eval_hess=true)
-    p = ProblemData(obj, dyn, cons, bnds, eval_hess=true)
+    p = solver(dyn, obj, cons, bnds, eval_hess=true)
 
     # Lagrangian
     function lagrangian(z) 

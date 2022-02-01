@@ -15,7 +15,7 @@ struct GeneralConstraint{T}
     idx_ineq::Vector{Int}
 end
 
-function GeneralConstraint(f::Function, nz::Int, nw::Int; idx_ineq=collect(1:0), eval_hess=false)
+function GeneralConstraint(f::Function, nz::Int; nw::Int=0, idx_ineq=collect(1:0), eval_hess=false)
     #TODO: option to load/save methods
     @variables z[1:nz], w[1:nw]
     val = f(z, w)

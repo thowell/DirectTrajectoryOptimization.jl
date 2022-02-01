@@ -103,7 +103,7 @@ bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 cons = [Constraint() for t = 1:T]
 
 # ## problem 
-p = ProblemData(obj, dyn, cons, bnds, options=Options())
+p = solver(dyn, obj, cons, bnds, options=Options{Float64}())
 
 @variables z[1:p.nlp.num_var]
 

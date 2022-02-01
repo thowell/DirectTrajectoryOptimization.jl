@@ -13,8 +13,8 @@ include("constraints.jl")
 include("bounds.jl")
 include("general_constraint.jl")
 include("dynamics.jl")
-include("solver.jl")
 include("data.jl")
+include("solver.jl")
 include("moi.jl")
 include("utils.jl")
 
@@ -26,9 +26,6 @@ export Bound, Bounds, Constraint, Constraints, GeneralConstraint
 
 # dynamics 
 export Dynamics
-
-# problem 
-export ProblemData
 
 # solver 
 export Solver, Options, initialize_states!, initialize_controls!, solve!, get_trajectory

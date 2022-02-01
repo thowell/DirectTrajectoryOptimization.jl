@@ -13,8 +13,8 @@
     ct = (x, u, w) -> [-ones(nx) - x; x - ones(nx)]
     cT = (x, u, w) -> x
 
-    cont = Constraint(ct, nx, nu, nw, idx_ineq=collect(1:2nx))
-    conT = Constraint(cT, nx, 0, 0)
+    cont = Constraint(ct, nx, nu, nw=nw, idx_ineq=collect(1:2nx))
+    conT = Constraint(cT, nx, 0, nw=0)
 
     cons = [[cont for t = 1:T-1]..., conT]
     nc = DTO.num_con(cons)

@@ -60,7 +60,7 @@ conT = Constraint(obs, nx, 0, nw, idx_ineq=collect(1:1))
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## problem 
-p = ProblemData(obj, dyn, cons, bnds, options=Options())
+p = solver(dyn, obj, cons, bnds)
 
 # ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)

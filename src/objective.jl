@@ -9,7 +9,7 @@ struct Cost{T}
     hess_cache::Vector{T}
 end
 
-function Cost(f::Function, nx::Int, nu::Int, nw::Int; eval_hess=false)
+function Cost(f::Function, nx::Int, nu::Int; nw::Int=0, eval_hess=false)
     #TODO: option to load/save methods
     @variables x[1:nx], u[1:nu], w[1:nw]
     val = f(x, u, w)

@@ -97,8 +97,8 @@
     # objective 
     ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
-    ct = Cost(ot, nx, nu, nw)
-    cT = Cost(oT, nx, 0, nw)
+    ct = Cost(ot, nx, nu, nw=nw)
+    cT = Cost(oT, nx, 0, nw=nw)
     obj = [[ct for t = 1:T-1]..., cT]
 
     # constraints
@@ -109,9 +109,8 @@
 
     cons = [Constraint() for t = 1:T]
 
-
     # problem 
-    p = ProblemData(obj, dyn, cons, bnds)
+    p = solver(dyn, obj, cons, bnds)
 
     # initialize
     initialize_states!(p, x_interpolation)
@@ -179,8 +178,8 @@ end
     # ## objective 
     ot = (x, u, w) -> 0.1 * dot(x, x) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x, x)
-    ct = Cost(ot, nx, nu, nw)
-    cT = Cost(oT, nx, 0, nw)
+    ct = Cost(ot, nx, nu, nw=nw)
+    cT = Cost(oT, nx, 0, nw=nw)
     obj = [[ct for t = 1:T-1]..., cT]
 
     # ## constraints
@@ -192,7 +191,7 @@ end
     cons = [Constraint() for t = 1:T]
 
     # ## problem 
-    p = ProblemData(obj, dyn, cons, bnds, options=Options())
+    p = solver(dyn, obj, cons, bnds)
 
     # ## initialize
     x_interpolation = linear_interpolation(x1, xT, T)
@@ -240,8 +239,8 @@ end
     # ## objective 
     ot = (x, u, w) -> 0.1 * dot(x, x) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x, x)
-    ct = Cost(ot, nx, nu, nw, eval_hess=eval_hess)
-    cT = Cost(oT, nx, 0, nw, eval_hess=eval_hess)
+    ct = Cost(ot, nx, nu, nw=nw, eval_hess=eval_hess)
+    cT = Cost(oT, nx, 0, nw=nw, eval_hess=eval_hess)
     obj = [[ct for t = 1:T-1]..., cT]
 
     # ## constraints
@@ -252,10 +251,10 @@ end
 
     cons = [Constraint() for t = 1:T]
 
-    gc = GeneralConstraint((z, w) -> z[(end-1):end] - xT, nx * T + nu * (T-1), 0, eval_hess=true)
+    gc = GeneralConstraint((z, w) -> z[(end-1):end] - xT, nx * T + nu * (T-1), nw=0, eval_hess=true)
 
     # ## problem 
-    p = ProblemData(obj, dyn, cons, bnds, 
+    p = solver(dyn, obj, cons, bnds, 
         general_constraint=gc,
         eval_hess=true,
         options=Options())
