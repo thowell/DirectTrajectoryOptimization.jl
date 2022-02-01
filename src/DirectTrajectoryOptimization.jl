@@ -28,7 +28,7 @@ export Bound, Bounds, Constraint, Constraints, GeneralConstraint
 export Dynamics
 
 # solver 
-export Solver, Options, initialize_states!, initialize_controls!, solve!, get_trajectory
+export solver, Solver, Options, initialize_states!, initialize_controls!, solve!, get_trajectory
 
 # utils 
 export linear_interpolation
