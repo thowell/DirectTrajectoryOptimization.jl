@@ -5,12 +5,12 @@
 A Julia package for solving constrained trajectory optimization problems: 
 
 ```
-minimize        gT(xT; wT) + sum(gt(xt, ut; wt))
-xt, ut
-subject to      xt+1 = ft(xt, ut; wt) , t = 1,...,T-1 
-                ct(xt, ut; wt) {<,=} 0, t = 1,...,T
-                xt_L < xt < xt_U, t = 1,...,T 
-                ut_L < ut < ut_U, t = 1,...,T-1.
+minimize        cost_T(state_T; parameter_T) + sum(cost_t(state_t, action_t; parameter_t))
+states, actions
+subject to      dynamics_t(state_t, action_t, state_t+1; wt),         t = 1,...,T-1 
+                constraint_t(state_t, action_t; parameter_t) {<,=} 0, t = 1,...,T
+                state_lower_t < state_t < state_upper_t,              t = 1,...,T 
+                action_lower_t < action_t < action_upper_t,           t = 1,...,T-1.
 ```
 
 with direct trajectory optimization. 
@@ -21,3 +21,5 @@ Fast and allocation-free gradients and sparse Jacobians are automatically genera
 ```
 Pkg.add("DirectTrajectoryOptimization")
 ```
+
+## Quick Start

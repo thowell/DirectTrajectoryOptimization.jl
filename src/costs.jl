@@ -1,90 +1,97 @@
 struct Cost{T}
-    #TODO: types for methods
-    val
-    grad
-    hess
-    sp::Vector{Vector{Int}}
-    val_cache::Vector{T}
-    grad_cache::Vector{T}
-    hess_cache::Vector{T}
+    evaluate::Any
+    gradient::Any
+    hessian::Any
+    sparsity::Vector{Vector{Int}}
+    evaluate_cache::Vector{T}
+    gradient_cache::Vector{T}
+    hessian_cache::Vector{T}
 end
 
-function Cost(f::Function, num_state::Int, nu::Int, nw::Int; eval_hess=false)
+function Cost(f::Function, num_state::Int, num_action::Int, num_parameter::Int; 
+    evaluate_hessian=false)
+
     #TODO: option to load/save methods
-    @variables x[1:num_state], u[1:nu], w[1:nw]
-    val = f(x, u, w)
-    grad = Symbolics.gradient(val, [x; u])
-    val_func = eval(Symbolics.build_function([val], x, u, w)[2])
-    grad_func = eval(Symbolics.build_function(grad, x, u, w)[2])
-    if eval_hess 
-        hess = Symbolics.sparsehessian(val, [x; u])
-        hess_func = eval(Symbolics.build_function(hess.nzval, x, u, w)[2])
+    @variables x[1:num_state], u[1:num_action], w[1:num_parameter]
+    evaluate = f(x, u, w)
+    grad = Symbolics.gradient(evaluate, [x; u])
+    evaluate_func = eval(Symbolics.build_function([evaluate], x, u, w)[2])
+    gradient_func = eval(Symbolics.build_function(grad, x, u, w)[2])
+    if evaluate_hessian 
+        hess = Symbolics.sparsehessian(evaluate, [x; u])
+        hessian_func = eval(Symbolics.build_function(hess.nzval, x, u, w)[2])
         sparsity = [findnz(hess)[1:2]...]
-        nh = length(hess.nzval)
+        num_hessian = length(hess.nzval)
     else 
-        hess_func = Expr(:null) 
+        hessian_func = Expr(:null) 
         sparsity = [Int[]]
-        nh = 0
+        num_hessian = 0
     end
 
-    return Cost(val_func, grad_func, hess_func, sparsity,
-        zeros(1), zeros(num_state + nu), zeros(nh))
+    return Cost(
+        evaluate_func, 
+        gradient_func, 
+        hessian_func, 
+        sparsity,
+        zeros(1), 
+        zeros(num_state + num_action), 
+        zeros(num_hessian))
 end
 
 Objective{T} = Vector{Cost{T}} where T
 
-function eval_obj(obj::Objective, x, u, w) 
+function objective(obj::Objective, states, actions, parameters) 
     J = 0.0
     for (t, cost) in enumerate(obj)
-        cost.val(cost.val_cache, x[t], u[t], w[t])
-        J += cost.val_cache[1]
+        cost.evaluate(cost.evaluate_cache, states[t], actions[t], parameters[t])
+        J += cost.evaluate_cache[1]
     end
     return J 
 end
 
-function eval_obj_grad!(grad, idx, obj::Objective, x, u, w)
+function gradient!(gradient, indices, obj::Objective, states, actions, parameters)
     for (t, cost) in enumerate(obj)
-        cost.grad(cost.grad_cache, x[t], u[t], w[t])
-        @views grad[idx[t]] .+= cost.grad_cache
-        # fill!(cost.grad_cache, 0.0) # TODO: confirm this is necessary
+        cost.gradient(cost.gradient_cache, states[t], actions[t], parameters[t])
+        @views gradient[indices[t]] .+= cost.gradient_cache
+        # fill!(cost.gradient_cache, 0.0) # TODO: confirm this is necessary
     end
 end
 
 #TODO: test
-function eval_obj_hess!(hess, idx, obj::Objective, x, u, w, σ)
+function hessian!(hessian, indices, obj::Objective, states, actions, parameters, scaling)
     for (t, cost) in enumerate(obj)
-        cost.hess(cost.hess_cache, x[t], u[t], w[t])
-        cost.hess_cache .*= σ
-        @views hess[idx[t]] .+= cost.hess_cache
-        # fill!(cost.hess_cache, 0.0) # TODO: confirm this is necessary
+        cost.hessian(cost.hessian_cache, states[t], actions[t], parameters[t])
+        cost.hessian_cache .*= scaling
+        @views hessian[indices[t]] .+= cost.hessian_cache
+        # fill!(cost.hessian_cache, 0.0) # TODO: confirm this is necessary
     end
 end
 
-function sparsity_hessian(obj::Objective, num_state::Vector{Int}, nu::Vector{Int})
+function sparsity_hessian(obj::Objective, num_state::Vector{Int}, num_action::Vector{Int})
     row = Int[]
     col = Int[]
     for (t, cost) in enumerate(obj)
-        if !isempty(cost.sp[1])
-            shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(nu[1:t-1])) : 0)
-            push!(row, (cost.sp[1] .+ shift)...) 
-            push!(col, (cost.sp[2] .+ shift)...) 
+        if !isempty(cost.sparsity[1])
+            shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(num_action[1:t-1])) : 0)
+            push!(row, (cost.sparsity[1] .+ shift)...) 
+            push!(col, (cost.sparsity[2] .+ shift)...) 
         end
     end
     return collect(zip(row, col))
 end
 
-function hessian_indices(obj::Objective, key::Vector{Tuple{Int,Int}}, num_state::Vector{Int}, nu::Vector{Int})
-    idx = Vector{Int}[]
+function hessian_indices(obj::Objective, key::Vector{Tuple{Int,Int}}, num_state::Vector{Int}, num_action::Vector{Int})
+    indices = Vector{Int}[]
     for (t, cost) in enumerate(obj)
-        if !isempty(cost.sp[1])
+        if !isempty(cost.sparsity[1])
             row = Int[]
             col = Int[]
-            shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(nu[1:t-1])) : 0)
-            push!(row, (cost.sp[1] .+ shift)...) 
-            push!(col, (cost.sp[2] .+ shift)...) 
+            shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(num_action[1:t-1])) : 0)
+            push!(row, (cost.sparsity[1] .+ shift)...) 
+            push!(col, (cost.sparsity[2] .+ shift)...) 
             rc = collect(zip(row, col))
-            push!(idx, [findfirst(x -> x == i, key) for i in rc])
+            push!(indices, [findfirst(x -> x == i, key) for i in rc])
         end
     end
-    return idx
+    return indices
 end

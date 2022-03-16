@@ -13,9 +13,9 @@ T = 11
 
 # ## double integrator 
 num_state = 2
-nu = 1 
-nw = 0 
-nz = num_state + nu + num_state
+num_action = 1 
+num_parameter = 0 
+nz = num_state + num_action + num_state
 
 # ## dynamics
 function double_integrator(d, y, x, u, w)
@@ -44,7 +44,7 @@ function double_integrator_grad(y, x, u, w)
     [-A -B I]
 end
 
-@variables y[1:num_state] x[1:num_state] u[1:nu] w[1:nw]
+@variables y[1:num_state] x[1:num_state] u[1:num_action] w[1:num_parameter]
 
 di = double_integrator(y, x, u, w) 
 diz = double_integrator_grad(y, x, u, w) 
@@ -52,7 +52,7 @@ di_func = eval(Symbolics.build_function(di, y, x, u, w)[2])
 diz_func = eval(Symbolics.build_function(diz, y, x, u, w)[2])
 
 # ## model
-dt = Dynamics(di_func, diz_func, num_state, num_state, nu)
+dt = Dynamics(di_func, diz_func, num_state, num_state, num_action)
 dyn = [dt for t = 1:T-1] 
 model = DynamicsModel(dyn)
 
@@ -63,13 +63,13 @@ xT = [1.0; 0.0]
 # ## objective 
 ot = (x, u, w) -> 0.1 * dot(x, x) + 0.1 * dot(u, u)
 oT = (x, u, w) -> 0.1 * dot(x, x)
-ct = Cost(ot, num_state, nu, nw, [t for t = 1:T-1])
-cT = Cost(oT, num_state, 0, nw, [T])
+ct = Cost(ot, num_state, num_action, num_parameter, [t for t = 1:T-1])
+cT = Cost(oT, num_state, 0, num_parameter, [T])
 obj = [ct, cT]
 
 # ## constraints
-x_init = Bound(num_state, nu, [1], state_lower=x1, xu=x1)
-x_goal = Bound(num_state, 0, [T], state_lower=xT, xu=xT)
+x_init = Bound(num_state, num_action, [1], state_lower=x1, state_upper=x1)
+x_goal = Bound(num_state, 0, [T], state_lower=xT, state_upper=xT)
 cons = ConstraintSet([x_init, x_goal], [StageConstraint()])
 
 # ## problem 
@@ -78,8 +78,8 @@ s = Solver(trajopt, options=Options())
 
 # ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)
-u_guess = [1.0 * randn(nu) for t = 1:T-1]
-z0 = zeros(s.p.num_var)
+u_guess = [1.0 * randn(num_action) for t = 1:T-1]
+z0 = zeros(s.p.num_variables)
 for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
     z0[idx] = x_interpolation[t]
 end

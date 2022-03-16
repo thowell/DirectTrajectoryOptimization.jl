@@ -4,9 +4,9 @@
 
     # acrobot 
     num_state = 4 
-    nu = 1 
-    nw = 0 
-    w_dim = [nw for t = 1:T]
+    num_action = 1 
+    num_parameter = 0 
+    parameter_dimensions = [num_parameter for t = 1:T]
 
     function acrobot(x, u, w)
         # dimensions
@@ -39,7 +39,7 @@
 
             c = inertia2
 
-        return [a b; b c]
+            return [a b; b c]
         end
 
         # dynamics bias
@@ -82,7 +82,7 @@
         y - (x + h * acrobot(0.5 * (x + y), u, w))
     end
 
-    dt = Dynamics(midpoint_implicit, num_state, num_state, nu, nw=nw)
+    dt = Dynamics(midpoint_implicit, num_state, num_state, num_action, num_parameter=num_parameter)
     dyn = [dt for t = 1:T-1] 
 
     # initial state 
@@ -97,25 +97,25 @@
     # objective 
     ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
-    ct = Cost(ot, num_state, nu, nw)
-    cT = Cost(oT, num_state, 0, nw)
+    ct = Cost(ot, num_state, num_action, num_parameter)
+    cT = Cost(oT, num_state, 0, num_parameter)
     obj = [[ct for t = 1:T-1]..., cT]
 
     # constraints
-    bnd1 = Bound(num_state, nu, state_lower=x1, xu=x1)
-    bndt = Bound(num_state, nu)
-    bndT = Bound(num_state, 0, state_lower=xT, xu=xT)
-    bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
+    bnd1 = Bound(num_state, num_action, state_lower=x1, state_upper=x1)
+    bndt = Bound(num_state, num_action)
+    bndT = Bound(num_state, 0, state_lower=xT, state_upper=xT)
+    bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
     cons = [Constraint() for t = 1:T]
 
 
     # problem 
-    p = ProblemData(obj, dyn, cons, bnds)
+    p = ProblemData(obj, dyn, cons, bounds)
 
     # initialize
     initialize_states!(p, x_interpolation)
-    initialize_controls!(p, [randn(nu) for t = 1:T-1])
+    initialize_controls!(p, [randn(num_action) for t = 1:T-1])
 
     # solve
     solve!(p)
@@ -133,8 +133,8 @@ end
 
     # ## double integrator 
     num_state = 2
-    nu = 1 
-    nw = 0 
+    num_action = 1 
+    num_parameter = 0 
 
     function double_integrator(d, y, x, u, w)
         A = [1.0 1.0; 0.0 1.0] 
@@ -161,7 +161,7 @@ end
         [-A -B I]
     end
 
-    @variables y[1:num_state] x[1:num_state] u[1:nu] w[1:nw]
+    @variables y[1:num_state] x[1:num_state] u[1:num_action] w[1:num_parameter]
 
     di = double_integrator(y, x, u, w) 
     diz = double_integrator_grad(y, x, u, w) 
@@ -169,7 +169,7 @@ end
     diz_func = eval(Symbolics.build_function(diz, y, x, u, w)[2])
 
     # ## model
-    dt = Dynamics(di_func, diz_func, num_state, num_state, nu)
+    dt = Dynamics(di_func, diz_func, num_state, num_state, num_action)
     dyn = [dt for t = 1:T-1] 
 
     # ## initialization
@@ -179,24 +179,29 @@ end
     # ## objective 
     ot = (x, u, w) -> 0.1 * dot(x, x) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x, x)
-    ct = Cost(ot, num_state, nu, nw)
-    cT = Cost(oT, num_state, 0, nw)
+    ct = Cost(ot, num_state, num_action, num_parameter)
+    cT = Cost(oT, num_state, 0, num_parameter)
     obj = [[ct for t = 1:T-1]..., cT]
 
     # ## constraints
-    bnd1 = Bound(num_state, nu, state_lower=x1, xu=x1)
-    bndt = Bound(num_state, nu)
-    bndT = Bound(num_state, 0, state_lower=xT, xu=xT)
-    bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
+    bnd1 = Bound(num_state, num_action, 
+        state_lower=x1, 
+        state_upper=x1)
+    bndt = Bound(num_state, num_action)
+    bndT = Bound(num_state, 0, 
+        state_lower=xT, 
+        state_upper=xT)
+    bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
     cons = [Constraint() for t = 1:T]
 
     # ## problem 
-    p = ProblemData(obj, dyn, cons, bnds, options=Options())
+    p = ProblemData(obj, dyn, cons, bounds, 
+        options=Options())
 
     # ## initialize
     x_interpolation = linear_interpolation(x1, xT, T)
-    u_guess = [1.0 * randn(nu) for t = 1:T-1]
+    u_guess = [1.0 * randn(num_action) for t = 1:T-1]
 
     initialize_states!(p, x_interpolation)
     initialize_controls!(p, u_guess)
@@ -212,15 +217,15 @@ end
 
 @testset "Solve: general constraint" begin 
     # ## 
-    eval_hess = true 
+    evaluate_hessian = true 
 
     # ## horizon 
     T = 11 
 
     # ## double integrator 
     num_state = 2
-    nu = 1 
-    nw = 0 
+    num_action = 1 
+    num_parameter = 0 
 
     function double_integrator(y, x, u, w)
         A = [1.0 1.0; 0.0 1.0] 
@@ -229,9 +234,9 @@ end
     end
 
     # ## model
-    dt = Dynamics(double_integrator, num_state, num_state, nu, eval_hess=eval_hess)
+    dt = Dynamics(double_integrator, num_state, num_state, num_action, evaluate_hessian=evaluate_hessian)
     dyn = [dt for t = 1:T-1] 
-    dyn[1].hess_cache
+    dyn[1].hessian_cache
 
     # ## initialization
     x1 = [0.0; 0.0] 
@@ -240,29 +245,34 @@ end
     # ## objective 
     ot = (x, u, w) -> 0.1 * dot(x, x) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x, x)
-    ct = Cost(ot, num_state, nu, nw, eval_hess=eval_hess)
-    cT = Cost(oT, num_state, 0, nw, eval_hess=eval_hess)
+    ct = Cost(ot, num_state, num_action, num_parameter, 
+        evaluate_hessian=evaluate_hessian)
+    cT = Cost(oT, num_state, 0, num_parameter, 
+        evaluate_hessian=evaluate_hessian)
     obj = [[ct for t = 1:T-1]..., cT]
 
     # ## constraints
-    bnd1 = Bound(num_state, nu, state_lower=x1, xu=x1)
-    bndt = Bound(num_state, nu)
-    bndT = Bound(num_state, 0)#, state_lower=xT, xu=xT)
-    bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
+    bnd1 = Bound(num_state, num_action, 
+        state_lower=x1, 
+        state_upper=x1)
+    bndt = Bound(num_state, num_action)
+    bndT = Bound(num_state, 0)#, state_lower=xT, state_upper=xT)
+    bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
     cons = [Constraint() for t = 1:T]
 
-    gc = GeneralConstraint((z, w) -> z[(end-1):end] - xT, num_state * T + nu * (T-1), 0, eval_hess=true)
+    gc = GeneralConstraint((z, w) -> z[(end-1):end] - xT, num_state * T + num_action * (T-1), 0, 
+        evaluate_hessian=true)
 
     # ## problem 
-    p = ProblemData(obj, dyn, cons, bnds, 
+    p = ProblemData(obj, dyn, cons, bounds, 
         general_constraint=gc,
-        eval_hess=true,
+        evaluate_hessian=true,
         options=Options())
 
     # ## initialize
     x_interpolation = linear_interpolation(x1, xT, T)
-    u_guess = [1.0 * randn(nu) for t = 1:T-1]
+    u_guess = [1.0 * randn(num_action) for t = 1:T-1]
 
     initialize_states!(p, x_interpolation)
     initialize_controls!(p, u_guess)

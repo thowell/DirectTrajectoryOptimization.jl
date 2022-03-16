@@ -1,15 +1,15 @@
 # dimensions 
 num_state = 2#12 
 nu = 1#4
-nw = 0
+num_parameter = 0
 
 # variables 
-@variables y[1:num_state], x[1:num_state], u[1:nu], w[1:nw]
+@variables y[1:num_state], x[1:num_state], u[1:nu], w[1:num_parameter]
 
 y1 = ones(num_state) 
 x1 = ones(num_state) 
 u1 = ones(nu)
-w1 = ones(nw)
+w1 = ones(num_parameter)
 
 xu1 = [x1; u1] 
 xuy1 = [x1; u1; y1]
@@ -324,7 +324,7 @@ end
 T = 10
 state_dimensions = [num_state for t = 1:T]
 action_dimensions = [nu for t = 1:T-1] 
-nw_dim = [nw for t = 1:T-1]
+num_parameter_dim = [num_parameter for t = 1:T-1]
 state_action_dimensions = [[num_state + nu for t = 1:T-1]..., num_state]
 
 idx_x = [collect((t > 1 ? sum(state_dimensions[1:t-1]) + sum(action_dimensions[1:t-1]) : 0) .+ (1:state_dimensions[t])) for t = 1:T] 
@@ -333,15 +333,15 @@ idx_xu = [collect((t > 1 ? sum(state_dimensions[1:t-1]) + sum(action_dimensions[
 idx_xuy = [collect((t > 1 ? sum(state_dimensions[1:t-1]) + sum(action_dimensions[1:t-1]) : 0) .+ (1:state_dimensions[t] + action_dimensions[t] + state_dimensions[t+1])) for t = 1:T-1] 
 
 typeof(idx_x)
-num_var = sum(state_dimensions) + sum(action_dimensions)
-z1 = randn(num_var)
+num_variables = sum(state_dimensions) + sum(action_dimensions)
+z1 = randn(num_variables)
 
 # objective
-obj_grad = zeros(num_var)
+obj_grad = zeros(num_variables)
 
 xv = [z1[idx_x[t]] for t = 1:T]
 uv = [[z1[idx_u[t]] for t = 1:T-1]..., zeros(0)]
-wv = [zeros(nw) for t = 1:T-1]
+wv = [zeros(num_parameter) for t = 1:T-1]
 
 objv = [0.0]
 gradv = [[obj_grad[idx_xu[t]] for t = 1:T-1]..., obj_grad[idx_x[T]]]
@@ -356,52 +356,52 @@ end
 eval_obj!(objv, xv, uv, T)
 @benchmark eval_obj!($objv, $xv, $uv, $T)
 
-function eval_obj_grad!(grad, x, u, T)
+function gradient!(grad, x, u, T)
     for t = 1:T
         fxu!(grad[t], x[t], u[t])
     end
 end
 
-eval_obj_grad!(gradv, xv, uv, T)
-@benchmark eval_obj_grad!($gradv, $xv, $uv, $T)
+gradient!(gradv, xv, uv, T)
+@benchmark gradient!($gradv, $xv, $uv, $T)
 
 # discrete dynamics 
 nd_dim = state_dimensions[2:T]
-num_con = sum(state_dimensions[2:T])
+num_constraint = sum(state_dimensions[2:T])
 idx_dyn = [(t > 1 ? sum(state_dimensions[1 .+ (1:t-1)]) : 0) .+ (1:state_dimensions[t+1]) for t = 1:T-1]
-con1 = zeros(num_con)
+con1 = zeros(num_constraint)
 conv = [con1[idx_dyn[t]] for t = 1:T-1]
 
-function eval_con!(con, x, u, w, T)
+function constraints!(con, x, u, w, T)
     for t = 1:T-1
         d!(con[t], x[t+1], x[t], u[t], w[t])
     end
 end
 
 d!(conv[t], xv[t+1], xv[t], uv[t], wv[t])
-eval_con!(conv, xv, uv, wv, T)
-@benchmark eval_con!($conv, $xv, $uv, $wv, $T)
+constraints!(conv, xv, uv, wv, T)
+@benchmark constraints!($conv, $xv, $uv, $wv, $T)
 
-function eval_con!(con, x, u, w, T)
+function constraints!(con, x, u, w, T)
     for t = 1:T-1
         d!(con[t], x[t+1], x[t], u[t], w[t])
     end
 end
 
-num_jac = length(dyn_xuy_sp.nzval) * (T - 1)
+num_jacobian = length(dyn_xuy_sp.nzval) * (T - 1)
 idx_jac = [(t - 1) * length(dyn_xuy_sp.nzval) .+ (1:length(dyn_xuy_sp.nzval)) for t = 1:T-1]
-jac1 = zeros(num_jac)
+jac1 = zeros(num_jacobian)
 jacv = [jac1[idx_jac[t]] for t = 1:T-1]
 
-function eval_jac!(jac, x, u, w, T)
+function jacobian!(jac, x, u, w, T)
     for t = 1:T-1
         dxuy_sp!(jac[t], x[t+1], x[t], u[t], w[t])
     end
 end
 
 dxuy_sp!(jacv[t], xv[t+1], xv[t], uv[t], wv[t])
-eval_jac!(jacv, xv, uv, wv, T)
-@benchmark eval_jac!($jacv, $xv, $uv, $wv, $T)
+jacobian!(jacv, xv, uv, wv, T)
+@benchmark jacobian!($jacv, $xv, $uv, $wv, $T)
 
 I_jac, J_jac, V_jac = findnz(dyn_xuy_sp)
 

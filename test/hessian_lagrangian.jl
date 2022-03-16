@@ -5,9 +5,9 @@
 
     # acrobot 
     num_state = 4 
-    nu = 1 
-    nw = 0 
-    w_dim = [nw for t = 1:T]
+    num_action = 1 
+    num_parameter = 0 
+    parameter_dimensions = [num_parameter for t = 1:T]
 
     function acrobot(x, u, w)
         # dimensions
@@ -83,7 +83,7 @@
         y - (x + h * acrobot(0.5 * (x + y), u, w))
     end
 
-    dt = Dynamics(midpoint_implicit, num_state, num_state, nu, nw=nw, eval_hess=true)
+    dt = Dynamics(midpoint_implicit, num_state, num_state, num_action, num_parameter=num_parameter, evaluate_hessian=true)
     dyn = [dt for t = 1:T-1] 
 
     # initial state 
@@ -95,56 +95,56 @@
     # objective 
     ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
-    objt = Cost(ot, num_state, nu, nw, eval_hess=true)
-    objT = Cost(oT, num_state, 0, nw, eval_hess=true)
+    objt = Cost(ot, num_state, num_action, num_parameter, evaluate_hessian=true)
+    objT = Cost(oT, num_state, 0, num_parameter, evaluate_hessian=true)
     obj = [[objt for t = 1:T-1]..., objT]
 
     # constraints
-    bnd1 = Bound(num_state, nu, state_lower=x1, xu=x1)
-    bndt = Bound(num_state, nu)
-    bndT = Bound(num_state, 0, state_lower=xT, xu=xT)
-    bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
+    bnd1 = Bound(num_state, num_action, state_lower=x1, state_upper=x1)
+    bndt = Bound(num_state, num_action)
+    bndT = Bound(num_state, 0, state_lower=xT, state_upper=xT)
+    bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-    ct = (x, u, w) -> [-5.0 * ones(nu) - cos.(u) .* sum(x.^2); cos.(x) .* tan.(u) - 5.0 * ones(num_state)]
+    ct = (x, u, w) -> [-5.0 * ones(num_action) - cos.(u) .* sum(x.^2); cos.(x) .* tan.(u) - 5.0 * ones(num_state)]
     cT = (x, u, w) -> sin.(x.^3.0)
-    cont = Constraint(ct, num_state, nu, nw, idx_ineq=collect(1:(nu + num_state)), eval_hess=true)
-    conT = Constraint(cT, num_state, 0, nw, eval_hess=true)
+    cont = Constraint(ct, num_state, num_action, num_parameter, indices_inequality=collect(1:(num_action + num_state)), evaluate_hessian=true)
+    conT = Constraint(cT, num_state, 0, num_parameter, evaluate_hessian=true)
     cons = [[cont for t = 1:T-1]..., conT]
 
     # data 
-    # trajopt = DTO.TrajectoryOptimizationData(obj, dyn, cons, bnds)
-    # nlp = DTO.NLPData(trajopt, eval_hess=true)
-    p = ProblemData(obj, dyn, cons, bnds, eval_hess=true)
+    # trajopt = DTO.TrajectoryOptimizationData(obj, dyn, cons, bounds)
+    # nlp = DTO.NLPData(trajopt, evaluate_hessian=true)
+    p = ProblemData(obj, dyn, cons, bounds, evaluate_hessian=true)
 
     # Lagrangian
     function lagrangian(z) 
         x1 = z[1:num_state] 
-        u1 = z[num_state .+ (1:nu)] 
-        x2 = z[num_state + nu .+ (1:num_state)] 
-        u2 = z[num_state + nu + num_state .+ (1:nu)] 
-        x3 = z[num_state + nu + num_state + nu .+ (1:num_state)]
-        λ1_dyn = z[num_state + nu + num_state + nu + num_state .+ (1:num_state)] 
-        λ2_dyn = z[num_state + nu + num_state + nu + num_state + num_state .+ (1:num_state)] 
+        u1 = z[num_state .+ (1:num_action)] 
+        x2 = z[num_state + num_action .+ (1:num_state)] 
+        u2 = z[num_state + num_action + num_state .+ (1:num_action)] 
+        x3 = z[num_state + num_action + num_state + num_action .+ (1:num_state)]
+        λ1_dyn = z[num_state + num_action + num_state + num_action + num_state .+ (1:num_state)] 
+        λ2_dyn = z[num_state + num_action + num_state + num_action + num_state + num_state .+ (1:num_state)] 
 
-        λ1_stage = z[num_state + nu + num_state + nu + num_state + num_state + num_state .+ (1:(nu + num_state))] 
-        λ2_stage = z[num_state + nu + num_state + nu + num_state + num_state + num_state + nu + num_state .+ (1:(nu + num_state))] 
-        λ3_stage = z[num_state + nu + num_state + nu + num_state + num_state + num_state + nu + num_state + nu + num_state .+ (1:num_state)]
+        λ1_stage = z[num_state + num_action + num_state + num_action + num_state + num_state + num_state .+ (1:(num_action + num_state))] 
+        λ2_stage = z[num_state + num_action + num_state + num_action + num_state + num_state + num_state + num_action + num_state .+ (1:(num_action + num_state))] 
+        λ3_stage = z[num_state + num_action + num_state + num_action + num_state + num_state + num_state + num_action + num_state + num_action + num_state .+ (1:num_state)]
 
         L = 0.0 
-        L += ot(x1, u1, zeros(nw)) 
-        L += ot(x2, u2, zeros(nw)) 
-        L += oT(x3, zeros(0), zeros(nw))
-        L += dot(λ1_dyn, midpoint_implicit(x2, x1, u1, zeros(nw))) 
-        L += dot(λ2_dyn, midpoint_implicit(x3, x2, u2, zeros(nw))) 
-        L += dot(λ1_stage, ct(x1, u1, zeros(nw)))
-        L += dot(λ2_stage, ct(x2, u2, zeros(nw)))
-        L += dot(λ3_stage, cT(x3, zeros(0), zeros(nw)))
+        L += ot(x1, u1, zeros(num_parameter)) 
+        L += ot(x2, u2, zeros(num_parameter)) 
+        L += oT(x3, zeros(0), zeros(num_parameter))
+        L += dot(λ1_dyn, midpoint_implicit(x2, x1, u1, zeros(num_parameter))) 
+        L += dot(λ2_dyn, midpoint_implicit(x3, x2, u2, zeros(num_parameter))) 
+        L += dot(λ1_stage, ct(x1, u1, zeros(num_parameter)))
+        L += dot(λ2_stage, ct(x2, u2, zeros(num_parameter)))
+        L += dot(λ3_stage, cT(x3, zeros(0), zeros(num_parameter)))
         return L
     end
 
-    nz = num_state + nu + num_state + nu + num_state + num_state + num_state + nu + num_state + nu + num_state + num_state
-    np = num_state + nu + num_state + nu + num_state
-    nd = num_state + num_state + nu + num_state + nu + num_state + num_state
+    nz = num_state + num_action + num_state + num_action + num_state + num_state + num_state + num_action + num_state + num_action + num_state + num_state
+    np = num_state + num_action + num_state + num_action + num_state
+    nd = num_state + num_state + num_action + num_state + num_action + num_state + num_state
     @variables z[1:nz]
     L = lagrangian(z)
     Lxx = Symbolics.hessian(L, z[1:np])
@@ -154,32 +154,32 @@
     Lxx_sp_func = eval(Symbolics.build_function(Lxx_sp.nzval, z)[1])
 
     z0 = rand(nz)
-    nh = length(p.nlp.sp_hess_lag)
+    nh = length(p.nlp.hessian_lagrangian_sparsity)
     h0 = zeros(nh)
 
     σ = 1.0
     fill!(h0, 0.0)
-    DTO.trajectory!(p.nlp.trajopt.x, p.nlp.trajopt.u, z0[1:np], 
-        p.nlp.idx.x, p.nlp.idx.u)
-    DTO.duals!(p.nlp.trajopt.λ_dyn, p.nlp.trajopt.λ_stage, p.nlp.λ_gen, z0[np .+ (1:nd)], p.nlp.idx.dyn_con, p.nlp.idx.stage_con, p.nlp.idx.gen_con)
-    DTO.eval_obj_hess!(h0, p.nlp.idx.obj_hess, p.nlp.trajopt.obj, p.nlp.trajopt.x, p.nlp.trajopt.u, p.nlp.trajopt.w, σ)
-    DTO.eval_hess_lag!(h0, p.nlp.idx.dyn_hess, p.nlp.trajopt.dyn, p.nlp.trajopt.x, p.nlp.trajopt.u, p.nlp.trajopt.w, p.nlp.trajopt.λ_dyn)
-    DTO.eval_hess_lag!(h0, p.nlp.idx.stage_hess, p.nlp.trajopt.cons, p.nlp.trajopt.x, p.nlp.trajopt.u, p.nlp.trajopt.w, p.nlp.trajopt.λ_stage)
+    DTO.trajectory!(p.nlp.trajopt.states, p.nlp.trajopt.actions, z0[1:np], 
+        p.nlp.indices.states, p.nlp.indices.actions)
+    DTO.duals!(p.nlp.trajopt.duals_dynamics, p.nlp.trajopt.duals_constraints, p.nlp.duals_general, z0[np .+ (1:nd)], p.nlp.indices.dynamics_constraints, p.nlp.indices.stage_constraints, p.nlp.indices.general_constraint)
+    DTO.hessian!(h0, p.nlp.indices.objective_hessians, p.nlp.trajopt.objective, p.nlp.trajopt.states, p.nlp.trajopt.actions, p.nlp.trajopt.parameters, σ)
+    DTO.hessian_lagrangian!(h0, p.nlp.indices.dynamics_hessians, p.nlp.trajopt.dynamics, p.nlp.trajopt.states, p.nlp.trajopt.actions, p.nlp.trajopt.parameters, p.nlp.trajopt.duals_dynamics)
+    DTO.hessian_lagrangian!(h0, p.nlp.indices.stage_hessians, p.nlp.trajopt.constraints, p.nlp.trajopt.states, p.nlp.trajopt.actions, p.nlp.trajopt.parameters, p.nlp.trajopt.duals_constraints)
 
-    sp_obj_hess = DTO.sparsity_hessian(obj, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
-    sp_dyn_hess = DTO.sparsity_hessian(dyn, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
-    sp_con_hess = DTO.sparsity_hessian(cons, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
-    sp_hess = collect([sp_obj_hess..., sp_dyn_hess..., sp_con_hess...]) 
-    sp_key = sort(unique(sp_hess))
+    sparsity_objective_hessians = DTO.sparsity_hessian(obj, p.nlp.trajopt.state_dimensions, p.nlp.trajopt.action_dimensions)
+    sparsity_dynamics_hessians = DTO.sparsity_hessian(dyn, p.nlp.trajopt.state_dimensions, p.nlp.trajopt.action_dimensions)
+    sparsity_constraint_hessian = DTO.sparsity_hessian(cons, p.nlp.trajopt.state_dimensions, p.nlp.trajopt.action_dimensions)
+    hessian_sparsity = collect([sparsity_objective_hessians..., sparsity_dynamics_hessians..., sparsity_constraint_hessian...]) 
+    sp_key = sort(unique(hessian_sparsity))
 
-    idx_obj_hess = DTO.hessian_indices(obj, sp_key, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
-    idx_dyn_hess = DTO.hessian_indices(dyn, sp_key, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
-    idx_con_hess = DTO.hessian_indices(cons, sp_key, p.nlp.trajopt.x_dim, p.nlp.trajopt.u_dim)
+    idx_objective_hessians = DTO.hessian_indices(obj, sp_key, p.nlp.trajopt.state_dimensions, p.nlp.trajopt.action_dimensions)
+    idx_dynamics_hessians = DTO.hessian_indices(dyn, sp_key, p.nlp.trajopt.state_dimensions, p.nlp.trajopt.action_dimensions)
+    idx_con_hess = DTO.hessian_indices(cons, sp_key, p.nlp.trajopt.state_dimensions, p.nlp.trajopt.action_dimensions)
 
     # indices
-    @test sp_key[vcat(idx_obj_hess...)] == sp_obj_hess
-    @test sp_key[vcat(idx_dyn_hess...)] == sp_dyn_hess
-    @test sp_key[vcat(idx_con_hess...)] == sp_con_hess
+    @test sp_key[vcat(idx_objective_hessians...)] == sparsity_objective_hessians
+    @test sp_key[vcat(idx_dynamics_hessians...)] == sparsity_dynamics_hessians
+    @test sp_key[vcat(idx_con_hess...)] == sparsity_constraint_hessian
 
     # Hessian
     h0_full = zeros(np, np)
@@ -195,5 +195,5 @@
 
     # a = z0[1:np]
     # b = z0[np .+ (1:nd)]
-    # info = @benchmark MOI.eval_hessian_lagrangian($p, $h0, $a, $σ, $b)
+    # info = @benchmark MOI.evaluate_hessianian_lagrangian($p, $h0, $a, $σ, $b)
 end

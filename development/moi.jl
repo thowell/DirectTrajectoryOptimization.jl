@@ -6,7 +6,7 @@ using InteractiveUtils
 T = 26
 num_state = 2
 nu = 1 
-nw = 0
+num_parameter = 0
 ft = (x, u) -> 1.0 * dot(x, x) + 0.1 * dot(u, u)
 fT = (x, u) -> 1.0 * dot(x, x)
 ct = Cost(ft, num_state, nu, [t for t = 1:T-1])
@@ -29,19 +29,19 @@ function discrete_dynamics(y, x, u, w)
     y - (x + h * dynamics(y, u, w))
 end
 
-dt = Dynamics(discrete_dynamics, num_state, num_state, nu, nw);
+dt = Dynamics(discrete_dynamics, num_state, num_state, nu, num_parameter);
 dyn = [dt for t = 1:T-1] 
 model = DynamicsModel(dyn)
 
-nz = sum([t < T ? dyn[t].num_state : dyn[t-1].ny for t = 1:T]) + sum([dyn[t].nu for t = 1:T-1])
-nc = num_con(dyn) 
-nj = num_jac(dyn)
+nz = sum([t < T ? dyn[t].num_state : dyn[t-1].num_next_state for t = 1:T]) + sum([dyn[t].nu for t = 1:T-1])
+nc = num_constraint(dyn) 
+nj = num_jacobian(dyn)
 z = rand(nz)
 c = zeros(nc)
 j = zeros(nj)
 x = [zero(z[model.idx.x[t]]) for t = 1:T]
 u = [[zero(z[model.idx.u[t]]) for t = 1:T-1]..., zeros(0)]
-w = [zeros(nw) for t = 1:T-1]
+w = [zeros(num_parameter) for t = 1:T-1]
 
 con = StageConstraint()
 cons = [con for t = 1:T]
@@ -68,7 +68,7 @@ p = Problem(trajopt, nz, nc,
 sparsity_jacobian(p)
 sparsity_hessian_lagrangian(p)
 
-z0 = 0.1 * randn(p.num_var)
+z0 = 0.1 * randn(p.num_variables)
 MOI.eval_constraint(p, c, z0)
 
 function obje(z) 
@@ -79,23 +79,23 @@ grad .= 0.0
 MOI.eval_objective_gradient(p, grad, z0)
 norm(ForwardDiff.gradient(obje, z0) - grad)
 
-function dyn_con(z) 
+function dynamics_constraints(z) 
     vcat([discrete_dynamics(z[p.trajopt.model.idx.x[t+1]], z[p.trajopt.model.idx.x[t]], z[p.trajopt.model.idx.u[t]], p.trajopt.w) for t = 1:T-1]...)
 end
-norm(c - dyn_con(z0)) < 1.0e-8 
+norm(c - dynamics_constraints(z0)) < 1.0e-8 
 
-dyn_con_jac = zeros(num_con(p.trajopt.model.dyn), num_xuy(p.trajopt.model.dyn))
+dynamics_constraints_jac = zeros(num_constraint(p.trajopt.model.dyn), num_state_action_next_state(p.trajopt.model.dyn))
 MOI.eval_constraint_jacobian(p, j, z0)
 sp = sparsity(p.trajopt.model.dyn, p.trajopt.model.dim.x, p.trajopt.model.dim.u)
 for (i, v) in enumerate(sp) 
-    dyn_con_jac[v...] = j[i] 
+    dynamics_constraints_jac[v...] = j[i] 
 end
-norm(ForwardDiff.jacobian(dyn_con, z0) - dyn_con_jac) < 1.0e-8
+norm(ForwardDiff.jacobian(dynamics_constraints, z0) - dynamics_constraints_jac) < 1.0e-8
 
-zl = -Inf * ones(p.num_var)
-zu = Inf * ones(p.num_var)
-cl = zeros(p.num_con) 
-cu = zeros(p.num_con)
+zl = -Inf * ones(p.num_variables)
+zu = Inf * ones(p.num_variables)
+cl = zeros(p.num_constraint) 
+cu = zeros(p.num_constraint)
 
 x1 = [0.0; 0.0]
 xT = [π; 0.0] 
@@ -119,9 +119,9 @@ solver.options["constr_viol_tol"] = 1.0e-3
 # solver.options["print_level"] = mapl
 # solver.options["linear_solver"] = "ma57"
 
-z = MOI.add_variables(solver, p.num_var)
+z = MOI.add_variables(solver, p.num_variables)
 
-for i = 1:p.num_var
+for i = 1:p.num_variables
     MOI.add_constraint(solver, z[i], MOI.LessThan(zu[i]))
     MOI.add_constraint(solver, z[i], MOI.GreaterThan(zl[i]))
     MOI.set(solver, MOI.VariablePrimalStart(), z[i], z0[i])

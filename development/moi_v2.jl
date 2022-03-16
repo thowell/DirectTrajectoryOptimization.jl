@@ -6,7 +6,7 @@ using InteractiveUtils
 T = 26
 num_state = 2
 nu = 1 
-nw = 0
+num_parameter = 0
 
 # objective
 ft = (x, u) -> dot(x, x) + 1.0e-1 * dot(u, u)
@@ -29,7 +29,7 @@ function discrete_dynamics(y, x, u, w)
     y - (x + h * dynamics(y, u, w))
 end
 
-dt = Dynamics(discrete_dynamics, num_state, num_state, nu, nw=nw);
+dt = Dynamics(discrete_dynamics, num_state, num_state, nu, num_parameter=num_parameter);
 dyn = [dt for t = 1:T-1] 
 model = DynamicsModel(dyn)
 
@@ -44,10 +44,10 @@ cons = ConstraintSet([x_init, x_goal], [StageConstraint()])
 trajopt = TrajectoryOptimizationProblem(obj, model, cons)
 s = Solver(trajopt)
 
-z = rand(s.p.num_var)
-g = zeros(s.p.num_var)
-c = zeros(s.p.num_con)
-j = zeros(s.p.num_jac)
+z = rand(s.p.num_variables)
+g = zeros(s.p.num_variables)
+c = zeros(s.p.num_constraint)
+j = zeros(s.p.num_jacobian)
 
 # MOI methods
 @code_warntype MOI.eval_objective(s.p, z)
@@ -61,7 +61,7 @@ j = zeros(s.p.num_jac)
 @benchmark MOI.eval_constraint_jacobian($s.p, $j, $z)
 
 # initialize
-z0 = 0.0 * rand(s.p.num_var)
+z0 = 0.0 * rand(s.p.num_variables)
 x_interp = linear_interpolation(x1, xT, T)
 for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
     z0[idx] = x_interp[t]

@@ -1,49 +1,124 @@
-function MOI.eval_objective(nlp::NLPData{T}, z::Vector{T}) where T
-    trajectory!(nlp.trajopt.x, nlp.trajopt.u, z, 
-        nlp.idx.x, nlp.idx.u)
-    eval_obj(nlp.trajopt.obj, nlp.trajopt.x, nlp.trajopt.u, nlp.trajopt.w) 
+function MOI.eval_objective(nlp::NLPData{T}, variables::Vector{T}) where T
+    trajectory!(
+        nlp.trajopt.states, 
+        nlp.trajopt.actions, 
+        variables, 
+        nlp.indices.states, 
+        nlp.indices.actions)
+    objective(
+        nlp.trajopt.objective, 
+        nlp.trajopt.states, 
+        nlp.trajopt.actions, 
+        nlp.trajopt.parameters) 
 end
 
-function MOI.eval_objective_gradient(nlp::NLPData{T}, grad, z) where T
-    fill!(grad, 0.0)
-    trajectory!(nlp.trajopt.x, nlp.trajopt.u, z, 
-        nlp.idx.x, nlp.idx.u)
-    eval_obj_grad!(grad, nlp.idx.xu, nlp.trajopt.obj, nlp.trajopt.x, nlp.trajopt.u, nlp.trajopt.w) 
+function MOI.eval_objective_gradient(nlp::NLPData{T}, gradient, variables) where T
+    fill!(gradient, 0.0)
+    trajectory!(
+        nlp.trajopt.states, 
+        nlp.trajopt.actions, 
+        variables, 
+        nlp.indices.states, 
+        nlp.indices.actions)
+    gradient!(gradient, 
+        nlp.indices.state_action, 
+        nlp.trajopt.objective, 
+        nlp.trajopt.states, 
+        nlp.trajopt.actions, 
+        nlp.trajopt.parameters) 
 end
 
-function MOI.eval_constraint(nlp::NLPData{T}, con, z) where T
-    fill!(con, 0.0)
-    trajectory!(nlp.trajopt.x, nlp.trajopt.u, z, 
-        nlp.idx.x, nlp.idx.u)
-    eval_con!(con, nlp.idx.dyn_con, nlp.trajopt.dyn, nlp.trajopt.x, nlp.trajopt.u, nlp.trajopt.w)
-    !isempty(nlp.idx.stage_con) && eval_con!(con, nlp.idx.stage_con, nlp.trajopt.cons, nlp.trajopt.x, nlp.trajopt.u, nlp.trajopt.w)
-    nlp.gc.nc != 0 && eval_con!(con, nlp.idx.gen_con, nlp.gc, z, nlp.w)
+function MOI.eval_constraint(nlp::NLPData{T}, violations, variables) where T
+    fill!(violations, 0.0)
+    trajectory!(
+        nlp.trajopt.states, 
+        nlp.trajopt.actions, 
+        variables, 
+        nlp.indices.states, 
+        nlp.indices.actions)
+    constraints!(
+        violations, 
+        nlp.indices.dynamics_constraints, 
+        nlp.trajopt.dynamics, 
+        nlp.trajopt.states, 
+        nlp.trajopt.actions, 
+        nlp.trajopt.parameters)
+    !isempty(nlp.indices.stage_constraints) && constraints!(violations, nlp.indices.stage_constraints, nlp.trajopt.constraints, nlp.trajopt.states, nlp.trajopt.actions, nlp.trajopt.parameters)
+    nlp.general_constraint.num_constraint != 0 && constraints!(violations, nlp.indices.general_constraint, nlp.general_constraint, variables, nlp.parameters)
 end
 
-function MOI.eval_constraint_jacobian(nlp::NLPData{T}, jac, z) where T
-    fill!(jac, 0.0)
-    trajectory!(nlp.trajopt.x, nlp.trajopt.u, z, 
-        nlp.idx.x, nlp.idx.u)
-    eval_jac!(jac, nlp.idx.dyn_jac, nlp.trajopt.dyn, nlp.trajopt.x, nlp.trajopt.u, nlp.trajopt.w)
-    !isempty(nlp.idx.stage_jac) && eval_jac!(jac, nlp.idx.stage_jac, nlp.trajopt.cons, nlp.trajopt.x, nlp.trajopt.u, nlp.trajopt.w)
-    nlp.gc.nc != 0 && eval_jac!(jac, nlp.idx.gen_jac, nlp.gc, z, nlp.w)
+function MOI.eval_constraint_jacobian(nlp::NLPData{T}, jacobian, variables) where T
+    fill!(jacobian, 0.0)
+    trajectory!(
+        nlp.trajopt.states, 
+        nlp.trajopt.actions, 
+        variables, 
+        nlp.indices.states, 
+        nlp.indices.actions)
+    jacobian!(
+        jacobian, 
+        nlp.indices.dynamics_jacobians, 
+        nlp.trajopt.dynamics, 
+        nlp.trajopt.states, 
+        nlp.trajopt.actions, 
+        nlp.trajopt.parameters)
+    !isempty(nlp.indices.stage_jacobians) && jacobian!(jacobian, nlp.indices.stage_jacobians, nlp.trajopt.constraints, nlp.trajopt.states, nlp.trajopt.actions, nlp.trajopt.parameters)
+    nlp.general_constraint.num_constraint != 0 && jacobian!(jacobian, nlp.indices.general_jacobian, nlp.general_constraint, variables, nlp.parameters)
     return nothing
 end
 
-function MOI.eval_hessian_lagrangian(nlp::MOI.AbstractNLPEvaluator, hess, z, σ, λ)
-    fill!(hess, 0.0)
-    trajectory!(nlp.trajopt.x, nlp.trajopt.u, z, 
-        nlp.idx.x, nlp.idx.u)
-    duals!(nlp.trajopt.λ_dyn, nlp.trajopt.λ_stage, nlp.λ_gen, λ, nlp.idx.dyn_con, nlp.idx.stage_con, nlp.idx.gen_con)
-    eval_obj_hess!(hess, nlp.idx.obj_hess, nlp.trajopt.obj, nlp.trajopt.x, nlp.trajopt.u,nlp.trajopt.w, σ)
-    eval_hess_lag!(hess, nlp.idx.dyn_hess, nlp.trajopt.dyn, nlp.trajopt.x, nlp.trajopt.u, nlp.trajopt.w, nlp.trajopt.λ_dyn)
-    eval_hess_lag!(hess, nlp.idx.stage_hess, nlp.trajopt.cons, nlp.trajopt.x, nlp.trajopt.u, nlp.trajopt.w, nlp.trajopt.λ_stage)
-    eval_hess_lag!(hess, nlp.idx.gen_hess, nlp.gc, z, nlp.w, nlp.λ_gen)
+function MOI.eval_hessian_lagrangian(nlp::MOI.AbstractNLPEvaluator, hessian, variables, scaling, duals)
+    fill!(hessian, 0.0)
+    trajectory!(
+        nlp.trajopt.states, 
+        nlp.trajopt.actions, 
+        variables, 
+        nlp.indices.states, 
+        nlp.indices.actions)
+    duals!(
+        nlp.trajopt.duals_dynamics, 
+        nlp.trajopt.duals_constraints, 
+        nlp.duals_general, 
+        duals, 
+        nlp.indices.dynamics_constraints, 
+        nlp.indices.stage_constraints, 
+        nlp.indices.general_constraint)
+    hessian!(
+        hessian, 
+        nlp.indices.objective_hessians, 
+        nlp.trajopt.objective, 
+        nlp.trajopt.states, 
+        nlp.trajopt.actions,
+        nlp.trajopt.parameters, 
+        scaling)
+    hessian_lagrangian!(
+        hessian, 
+        nlp.indices.dynamics_hessians, 
+        nlp.trajopt.dynamics, 
+        nlp.trajopt.states, 
+        nlp.trajopt.actions, 
+        nlp.trajopt.parameters, 
+        nlp.trajopt.duals_dynamics)
+    hessian_lagrangian!(
+        hessian, 
+        nlp.indices.stage_hessians, 
+        nlp.trajopt.constraints, 
+        nlp.trajopt.states, 
+        nlp.trajopt.actions, 
+        nlp.trajopt.parameters, 
+        nlp.trajopt.duals_constraints)
+    hessian_lagrangian!(
+        hessian, 
+        nlp.indices.general_hessian, 
+        nlp.general_constraint, 
+        variables, 
+        nlp.parameters, 
+        nlp.duals_general)
 end
 
-MOI.features_available(nlp::MOI.AbstractNLPEvaluator) = nlp.hess_lag ? [:Grad, :Jac, :Hess] : [:Grad, :Jac]
+MOI.features_available(nlp::MOI.AbstractNLPEvaluator) = nlp.hessian_lagrangian ? [:Grad, :jacobian, :hessian] : [:Grad, :jacobian]
 MOI.initialize(nlp::MOI.AbstractNLPEvaluator, features) = nothing
-MOI.jacobian_structure(nlp::MOI.AbstractNLPEvaluator) = nlp.sp_jac
-MOI.hessian_lagrangian_structure(nlp::MOI.AbstractNLPEvaluator) = nlp.sp_hess_lag
+MOI.jacobian_structure(nlp::MOI.AbstractNLPEvaluator) = nlp.jacobian_sparsity
+MOI.hessian_lagrangian_structure(nlp::MOI.AbstractNLPEvaluator) = nlp.hessian_lagrangian_sparsity
 
 

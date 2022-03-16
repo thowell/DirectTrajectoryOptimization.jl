@@ -1,194 +1,235 @@
 struct TrajectoryOptimizationData{T}
-    x::Vector{Vector{T}}
-    u::Vector{Vector{T}}
-    w::Vector{Vector{T}}
-    obj::Objective{T}
-    dyn::Vector{Dynamics{T}}
-    cons::Constraints{T}
-    bnds::Bounds{T}
-    λ_dyn::Vector{Vector{T}} 
-    λ_stage::Vector{Vector{T}}
-    x_dim::Vector{Int}
-    u_dim::Vector{Int}
-    w_dim::Vector{Int}
+    states::Vector{Vector{T}}
+    actions::Vector{Vector{T}}
+    parameters::Vector{Vector{T}}
+    objective::Objective{T}
+    dynamics::Vector{Dynamics{T}}
+    constraints::Constraints{T}
+    bounds::Bounds{T}
+    duals_dynamics::Vector{Vector{T}} 
+    duals_constraints::Vector{Vector{T}}
+    state_dimensions::Vector{Int}
+    action_dimensions::Vector{Int}
+    parameter_dimensions::Vector{Int}
 end
 
-function TrajectoryOptimizationData(obj::Objective{T}, dyn::Vector{Dynamics{T}}, cons::Constraints{T}, bnds::Bounds{T}; 
-    w = [zeros(nw) for nw in dimensions(dyn)[3]]) where T
+function TrajectoryOptimizationData(obj::Objective{T}, dynamics::Vector{Dynamics{T}}, constraints::Constraints{T}, bounds::Bounds{T}; 
+    parameters=[zeros(num_parameter) for num_parameter in dimensions(dynamics)[3]]) where T
 
-    x_dim, u_dim, w_dim = dimensions(dyn)
+    state_dimensions, action_dimensions, parameter_dimensions = dimensions(dynamics)
 
-    x = [zeros(num_state) for num_state in x_dim]
-    u = [zeros(nu) for nu in u_dim]
+    states = [zeros(num_state) for num_state in state_dimensions]
+    actions = [zeros(nu) for nu in action_dimensions]
 
-    λ_dyn = [zeros(num_state) for num_state in x_dim[2:end]]
-    λ_stage = [zeros(con.nc) for con in cons]
+    duals_dynamics = [zeros(num_state) for num_state in state_dimensions[2:end]]
+    duals_constraints = [zeros(con.num_constraint) for con in constraints]
    
-    TrajectoryOptimizationData(x, u, w, obj, dyn, cons, bnds, λ_dyn, λ_stage, x_dim, u_dim, w_dim)
+    TrajectoryOptimizationData(
+        states, 
+        actions, 
+        parameters,
+        obj, 
+        dynamics, 
+        constraints, 
+        bounds, 
+        duals_dynamics, 
+        duals_constraints, 
+        state_dimensions, 
+        action_dimensions, 
+        parameter_dimensions)
 end
 
-TrajectoryOptimizationData(obj::Objective, dyn::Vector{Dynamics}) = TrajectoryOptimizationData(obj, dyn, [Constraint() for t = 1:length(dyn)], [Bound() for t = 1:length(dyn)])
+TrajectoryOptimizationData(obj::Objective, dynamics::Vector{Dynamics}) = TrajectoryOptimizationData(obj, dynamics, [Constraint() for t = 1:length(dynamics)], [Bound() for t = 1:length(dynamics)])
 
 struct TrajectoryOptimizationIndices 
-    obj_hess::Vector{Vector{Int}}
-    dyn_con::Vector{Vector{Int}} 
-    dyn_jac::Vector{Vector{Int}} 
-    dyn_hess::Vector{Vector{Int}}
-    stage_con::Vector{Vector{Int}} 
-    stage_jac::Vector{Vector{Int}} 
-    stage_hess::Vector{Vector{Int}}
-    gen_con::Vector{Int}
-    gen_jac::Vector{Int}
-    gen_hess::Vector{Int}
-    x::Vector{Vector{Int}}
-    u::Vector{Vector{Int}}
-    xu::Vector{Vector{Int}}
-    xuy::Vector{Vector{Int}}
+    objective_hessians::Vector{Vector{Int}}
+    dynamics_constraints::Vector{Vector{Int}} 
+    dynamics_jacobians::Vector{Vector{Int}} 
+    dynamics_hessians::Vector{Vector{Int}}
+    stage_constraints::Vector{Vector{Int}} 
+    stage_jacobians::Vector{Vector{Int}} 
+    stage_hessians::Vector{Vector{Int}}
+    general_constraint::Vector{Int}
+    general_jacobian::Vector{Int}
+    general_hessian::Vector{Int}
+    states::Vector{Vector{Int}}
+    actions::Vector{Vector{Int}}
+    state_action::Vector{Vector{Int}}
+    state_action_next_state::Vector{Vector{Int}}
 end
 
-function indices(obj::Objective{T}, dyn::Vector{Dynamics{T}}, cons::Constraints{T}, gc::GeneralConstraint{T},
-     key::Vector{Tuple{Int,Int}}, num_state::Vector{Int}, nu::Vector{Int}, nz::Int) where T 
+function indices(obj::Objective{T}, dynamics::Vector{Dynamics{T}}, constraints::Constraints{T}, general::GeneralConstraint{T},
+    key::Vector{Tuple{Int,Int}}, num_state::Vector{Int}, num_action::Vector{Int}, num_trajectory::Int) where T 
     # Jacobians
-    dyn_con = constraint_indices(dyn, shift=0)
-    dyn_jac = jacobian_indices(dyn, shift=0)
-    stage_con = constraint_indices(cons, shift=num_con(dyn))
-    stage_jac = jacobian_indices(cons, shift=num_jac(dyn)) 
-    gen_con = constraint_indices(gc, shift=(num_con(dyn) + num_con(cons)))
-    gen_jac = jacobian_indices(gc, shift=(num_jac(dyn) + num_jac(cons))) 
+    dynamics_constraints = constraint_indices(dynamics, 
+        shift=0)
+    dynamics_jacobians = jacobian_indices(dynamics, 
+        shift=0)
+    stage_constraints = constraint_indices(constraints, 
+        shift=num_constraint(dynamics))
+    stage_jacobians = jacobian_indices(constraints, 
+        shift=num_jacobian(dynamics)) 
+    general_constraint = constraint_indices(general, 
+        shift=(num_constraint(dynamics) + num_constraint(constraints)))
+    general_jacobian = jacobian_indices(general, 
+        shift=(num_jacobian(dynamics) + num_jacobian(constraints))) 
 
     # Hessian of Lagrangian 
-    obj_hess = hessian_indices(obj, key, num_state, nu)
-    dyn_hess = hessian_indices(dyn, key, num_state, nu)
-    stage_hess = hessian_indices(cons, key, num_state, nu)
-    gen_hess = hessian_indices(gc, key, nz)
+    objective_hessians = hessian_indices(obj, key, num_state, num_action)
+    dynamics_hessians = hessian_indices(dynamics, key, num_state, num_action)
+    stage_hessians = hessian_indices(constraints, key, num_state, num_action)
+    general_hessian = hessian_indices(general, key, num_trajectory)
 
     # indices
-    x_idx = x_indices(dyn)
-    u_idx = u_indices(dyn)
-    xu_idx = xu_indices(dyn)
-    xuy_idx = xuy_indices(dyn)
+    x_idx = state_indices(dynamics)
+    u_idx = action_indices(dynamics)
+    xu_idx = state_action_indices(dynamics)
+    xuy_idx = state_action_next_state_indices(dynamics)
 
     return TrajectoryOptimizationIndices(
-        obj_hess, 
-        dyn_con, dyn_jac, dyn_hess, 
-        stage_con, stage_jac, stage_hess,
-        gen_con, gen_jac, gen_hess,
-        x_idx, u_idx, xu_idx, xuy_idx) 
+        objective_hessians, 
+        dynamics_constraints, 
+        dynamics_jacobians, 
+        dynamics_hessians, 
+        stage_constraints, 
+        stage_jacobians, 
+        stage_hessians,
+        general_constraint, 
+        general_jacobian, 
+        general_hessian,
+        x_idx, 
+        u_idx, 
+        xu_idx, 
+        xuy_idx) 
 end
 
 struct NLPData{T} <: MOI.AbstractNLPEvaluator
     trajopt::TrajectoryOptimizationData{T}
-    num_var::Int                 
-    num_con::Int 
-    num_jac::Int 
-    num_hess_lag::Int               
-    var_bnds::Vector{Vector{T}}
-    con_bnds::Vector{Vector{T}}
-    idx::TrajectoryOptimizationIndices
-    sp_jac
-    sp_hess_lag
-    hess_lag::Bool 
-    gc::GeneralConstraint{T}
-    w::Vector{T}
-    λ_gen::Vector{T}
+    num_variables::Int                 
+    num_constraint::Int 
+    num_jacobian::Int 
+    num_hessian_lagrangian::Int               
+    variable_bounds::Vector{Vector{T}}
+    constraint_bounds::Vector{Vector{T}}
+    indices::TrajectoryOptimizationIndices
+    jacobian_sparsity
+    hessian_lagrangian_sparsity
+    hessian_lagrangian::Bool 
+    general_constraint::GeneralConstraint{T}
+    parameters::Vector{T}
+    duals_general::Vector{T}
 end
 
-function primal_bounds(bnds::Bounds{T}, nz::Int, x_idx::Vector{Vector{Int}}, u_idx::Vector{Vector{Int}}) where T 
-    zl, zu = -Inf * ones(nz), Inf * ones(nz) 
-    for (t, bnd) in enumerate(bnds)
-        length(bnd.state_lower) > 0 && (zl[x_idx[t]] = bnd.state_lower)
-        length(bnd.xu) > 0 && (zu[x_idx[t]] = bnd.xu)
-        length(bnd.ul) > 0 && (zl[u_idx[t]] = bnd.ul)
-        length(bnd.uu) > 0 && (zu[u_idx[t]] = bnd.uu)
+function primal_bounds(bounds::Bounds{T}, num_variables::Int, state_indices::Vector{Vector{Int}}, action_indices::Vector{Vector{Int}}) where T 
+    lower, upper = -Inf * ones(num_variables), Inf * ones(num_variables) 
+    for (t, bnd) in enumerate(bounds)
+        length(bnd.state_lower)  > 0 && (lower[state_indices[t]]  = bnd.state_lower)
+        length(bnd.state_upper)  > 0 && (upper[state_indices[t]]  = bnd.state_upper)
+        length(bnd.action_lower) > 0 && (lower[action_indices[t]] = bnd.action_lower)
+        length(bnd.action_upper) > 0 && (upper[action_indices[t]] = bnd.action_upper)
     end
-    return zl, zu
+    return lower, upper
 end
 
-function constraint_bounds(cons::Constraints{T}, gc::GeneralConstraint{T}, 
-    nc_dyn::Int, nc_con::Int, idx::TrajectoryOptimizationIndices) where T
+function constraint_bounds(constraints::Constraints{T}, general::GeneralConstraint{T}, 
+    num_dynamics::Int, num_stage::Int, indices::TrajectoryOptimizationIndices) where T
     # total constraints
-    nc = nc_dyn + nc_con + gc.nc 
+    total_constraint = num_dynamics + num_stage + general.num_constraint
     # bounds
-    cl, cu = zeros(nc), zeros(nc) 
+    lower, upper = zeros(total_constraint), zeros(total_constraint) 
     # stage
-    for (t, con) in enumerate(cons) 
-        cl[idx.stage_con[t][con.idx_ineq]] .= -Inf
+    for (t, con) in enumerate(constraints) 
+        lower[indices.stage_constraints[t][con.indices_inequality]] .= -Inf
     end
     # general
-    cl[collect(nc_dyn + nc_con .+ gc.idx_ineq)] .= -Inf
-    return cl, cu
+    lower[collect(num_dynamics + num_stage .+ general.indices_inequality)] .= -Inf
+    return lower, upper
 end 
 
 function NLPData(trajopt::TrajectoryOptimizationData; 
-    eval_hess=false, 
+    evaluate_hessian=false, 
     general_constraint=GeneralConstraint()) 
 
     # number of variables
-    nz = sum(trajopt.x_dim) + sum(trajopt.u_dim)
+    total_variables = sum(trajopt.state_dimensions) + sum(trajopt.action_dimensions)
 
     # number of constraints
-    nc_dyn = num_con(trajopt.dyn)
-    nc_con = num_con(trajopt.cons)  
-    nc_gen = num_con(general_constraint)
-    nc = nc_dyn + nc_con + nc_gen
+    num_dynamics = num_constraint(trajopt.dynamics)
+    num_stage = num_constraint(trajopt.constraints)  
+    num_general = num_constraint(general_constraint)
+    total_constraints = num_dynamics + num_stage + num_general
 
     # number of nonzeros in constraint Jacobian
-    nj_dyn = num_jac(trajopt.dyn)
-    nj_con = num_jac(trajopt.cons)  
-    nj_gen = num_jac(general_constraint)
-    nj = nj_dyn + nj_con + nj_gen
+    num_dynamics_jacobian = num_jacobian(trajopt.dynamics)
+    num_constraint_jacobian = num_jacobian(trajopt.constraints)  
+    num_general_jacobian = num_jacobian(general_constraint)
+    total_jacobians = num_dynamics_jacobian + num_constraint_jacobian + num_general_jacobian
 
     # number of nonzeros in Hessian of Lagrangian
-    nh = 0
+    num_hessian_lagrangian = 0
 
     # constraint Jacobian sparsity
-    sp_dyn = sparsity_jacobian(trajopt.dyn, trajopt.x_dim, trajopt.u_dim, row_shift=0)
-    sp_con = sparsity_jacobian(trajopt.cons, trajopt.x_dim, trajopt.u_dim, row_shift=nc_dyn)
-    sp_gen = sparsity_jacobian(general_constraint, nz, row_shift=(nc_dyn + nc_con))
-    sp_jac = collect([sp_dyn..., sp_con..., sp_gen...]) 
+    sparsity_dynamics = sparsity_jacobian(trajopt.dynamics, trajopt.state_dimensions, trajopt.action_dimensions, 
+        row_shift=0)
+    sparsity_constraint = sparsity_jacobian(trajopt.constraints, trajopt.state_dimensions, trajopt.action_dimensions, 
+        row_shift=num_dynamics)
+    sparsity_general = sparsity_jacobian(general_constraint, total_variables, row_shift=(num_dynamics + num_stage))
+    jacobian_sparsity = collect([sparsity_dynamics..., sparsity_constraint..., sparsity_general...]) 
 
     # Hessian of Lagrangian sparsity 
-    sp_obj_hess = sparsity_hessian(trajopt.obj, trajopt.x_dim, trajopt.u_dim)
-    sp_dyn_hess = sparsity_hessian(trajopt.dyn, trajopt.x_dim, trajopt.u_dim)
-    sp_con_hess = sparsity_hessian(trajopt.cons, trajopt.x_dim, trajopt.u_dim)
-    sp_gen_hess = sparsity_hessian(general_constraint, nz)
-    sp_hess_lag = [sp_obj_hess..., sp_dyn_hess..., sp_con_hess..., sp_gen_hess...]
-    sp_hess_lag = !isempty(sp_hess_lag) ? sp_hess_lag : Tuple{Int,Int}[]
-    sp_hess_key = sort(unique(sp_hess_lag))
+    sparsity_objective_hessians = sparsity_hessian(trajopt.objective, trajopt.state_dimensions, trajopt.action_dimensions)
+    sparsity_dynamics_hessians = sparsity_hessian(trajopt.dynamics, trajopt.state_dimensions, trajopt.action_dimensions)
+    sparsity_constraint_hessian = sparsity_hessian(trajopt.constraints, trajopt.state_dimensions, trajopt.action_dimensions)
+    sparsity_general_hessian = sparsity_hessian(general_constraint, total_variables)
+    hessian_lagrangian_sparsity = [sparsity_objective_hessians..., sparsity_dynamics_hessians..., sparsity_constraint_hessian..., sparsity_general_hessian...]
+    hessian_lagrangian_sparsity = !isempty(hessian_lagrangian_sparsity) ? hessian_lagrangian_sparsity : Tuple{Int,Int}[]
+    hessian_sparsity_key = sort(unique(hessian_lagrangian_sparsity))
 
     # indices 
-    idx = indices(trajopt.obj, trajopt.dyn, trajopt.cons, 
+    idx = indices(
+        trajopt.objective, 
+        trajopt.dynamics, 
+        trajopt.constraints, 
         general_constraint, 
-        sp_hess_key, 
-        trajopt.x_dim, trajopt.u_dim, nz)
+        hessian_sparsity_key, 
+        trajopt.state_dimensions, 
+        trajopt.action_dimensions, 
+        total_variables)
 
     # primal variable bounds
-    zl, zu = primal_bounds(trajopt.bnds, nz, idx.x, idx.u) 
+    primal_lower, primal_upper = primal_bounds(trajopt.bounds, total_variables, idx.states, idx.actions) 
 
     # nonlinear constraint bounds
-    cl, cu = constraint_bounds(trajopt.cons, general_constraint, nc_dyn, nc_con, idx) 
+    constraint_lower, constraint_upper = constraint_bounds(trajopt.constraints, general_constraint, num_dynamics, num_stage, idx) 
 
     NLPData(trajopt, 
-        nz, nc, nj, nh, 
-        [zl, zu], [cl, cu], 
+        total_variables, 
+        total_constraints, 
+        total_jacobians, 
+        num_hessian_lagrangian, 
+        [primal_lower, primal_upper], 
+        [constraint_lower, constraint_upper], 
         idx, 
-        sp_jac, sp_hess_key,
-        eval_hess, 
+        jacobian_sparsity, 
+        hessian_sparsity_key,
+        evaluate_hessian, 
         general_constraint,
-        vcat(trajopt.w...),
-        zeros(general_constraint.nc))
+        vcat(trajopt.parameters...),
+        zeros(general_constraint.num_constraint))
 end
 
 struct SolverData 
     nlp_bounds::Vector{MOI.NLPBoundsPair}
     block_data::MOI.NLPBlockData
     solver::Ipopt.Optimizer
-    z::Vector{MOI.VariableIndex} 
+    variables::Vector{MOI.VariableIndex} 
 end
 
-function SolverData(nlp::NLPData; options=Options()) 
+function SolverData(nlp::NLPData; 
+    options=Options()) 
+
     # solver
-    nlp_bounds = MOI.NLPBoundsPair.(nlp.con_bnds...)
+    nlp_bounds = MOI.NLPBoundsPair.(nlp.constraint_bounds...)
     block_data = MOI.NLPBlockData(nlp_bounds, nlp, true)
     
     # instantiate NLP solver
@@ -199,11 +240,11 @@ function SolverData(nlp::NLPData; options=Options())
         solver.options[String(name)] = getfield(options, name)
     end
     
-    z = MOI.add_variables(solver, nlp.num_var)
+    z = MOI.add_variables(solver, nlp.num_variables)
     
-    for i = 1:nlp.num_var
-        MOI.add_constraint(solver, z[i], MOI.LessThan(nlp.var_bnds[2][i]))
-        MOI.add_constraint(solver, z[i], MOI.GreaterThan(nlp.var_bnds[1][i]))
+    for i = 1:nlp.num_variables
+        MOI.add_constraint(solver, z[i], MOI.LessThan(nlp.variable_bounds[2][i]))
+        MOI.add_constraint(solver, z[i], MOI.GreaterThan(nlp.variable_bounds[1][i]))
     end
     
     MOI.set(solver, MOI.NLPBlock(), block_data)
@@ -213,67 +254,71 @@ function SolverData(nlp::NLPData; options=Options())
 end
 
 
-function trajectory!(x::Vector{Vector{T}}, u::Vector{Vector{T}}, z::Vector{T}, 
-    idx_x::Vector{Vector{Int}}, idx_u::Vector{Vector{Int}}) where T
-    for (t, idx) in enumerate(idx_x)
-        x[t] .= @views z[idx]
+function trajectory!(states::Vector{Vector{T}}, actions::Vector{Vector{T}}, 
+    trajectory::Vector{T}, 
+    state_indices::Vector{Vector{Int}}, action_indices::Vector{Vector{Int}}) where T
+    for (t, idx) in enumerate(state_indices)
+        states[t] .= @views trajectory[idx]
     end 
-    for (t, idx) in enumerate(idx_u)
-        u[t] .= @views z[idx]
+    for (t, idx) in enumerate(action_indices)
+        actions[t] .= @views trajectory[idx]
     end
 end
 
-function duals!(λ_dyn::Vector{Vector{T}}, λ_stage::Vector{Vector{T}}, λ_gen::Vector{T}, λ, 
-    idx_dyn::Vector{Vector{Int}}, idx_stage::Vector{Vector{Int}}, idx_gen::Vector{Int}) where T
-    for (t, idx) in enumerate(idx_dyn)
-        λ_dyn[t] .= @views λ[idx]
+function duals!(duals_dynamics::Vector{Vector{T}}, duals_constraints::Vector{Vector{T}}, duals_general::Vector{T}, duals, 
+    dynamics_indices::Vector{Vector{Int}}, constraint_indices::Vector{Vector{Int}}, general_indices::Vector{Int}) where T
+    for (t, idx) in enumerate(dynamics_indices)
+        duals_dynamics[t] .= @views duals[idx]
     end 
-    for (t, idx) in enumerate(idx_stage)
-        λ_stage[t] .= @views λ[idx]
+    for (t, idx) in enumerate(constraint_indices)
+        duals_constraints[t] .= @views duals[idx]
     end
-    λ_gen .= λ[idx_gen]
+    duals_general .= duals[general_indices]
 end
 
 struct ProblemData{T} <: MOI.AbstractNLPEvaluator
     nlp::NLPData{T}
-    s_data::SolverData
+    solver_data::SolverData
 end
 
-function ProblemData(obj::Objective{T}, dyn::Vector{Dynamics{T}}, cons::Constraints{T}, bnds::Bounds{T}; 
-    eval_hess=false, 
+function ProblemData(obj::Objective{T}, dynamics::Vector{Dynamics{T}}, constraints::Constraints{T}, bounds::Bounds{T}; 
+    evaluate_hessian=false, 
     general_constraint=GeneralConstraint(),
     options=Options(),
-    w=[[zeros(nw) for nw in dimensions(dyn)[3]]..., zeros(0)]) where T
+    parameters=[[zeros(num_parameter) for num_parameter in dimensions(dynamics)[3]]..., zeros(0)]) where T
 
-    trajopt = TrajectoryOptimizationData(obj, dyn, cons, bnds, w=w)
-    nlp = NLPData(trajopt, general_constraint=general_constraint, eval_hess=eval_hess) 
-    s_data = SolverData(nlp, options=options)
+    trajopt = TrajectoryOptimizationData(obj, dynamics, constraints, bounds, parameters=parameters)
+    nlp = NLPData(trajopt, 
+        general_constraint=general_constraint, 
+        evaluate_hessian=evaluate_hessian) 
+    solver_data = SolverData(nlp, 
+        options=options)
 
-    ProblemData(nlp, s_data) 
+    ProblemData(nlp, solver_data) 
 end
 
-function initialize_states!(p::ProblemData, x) 
-    for (t, xt) in enumerate(x) 
+function initialize_states!(p::ProblemData, states) 
+    for (t, xt) in enumerate(states) 
         n = length(xt)
         for i = 1:n
-            MOI.set(p.s_data.solver, MOI.VariablePrimalStart(), p.s_data.z[p.nlp.idx.x[t][i]], xt[i])
+            MOI.set(p.solver_data.solver, MOI.VariablePrimalStart(), p.solver_data.variables[p.nlp.indices.states[t][i]], xt[i])
         end
     end
 end 
 
-function initialize_controls!(p::ProblemData, u)
-    for (t, ut) in enumerate(u) 
+function initialize_controls!(p::ProblemData, actions)
+    for (t, ut) in enumerate(actions) 
         m = length(ut) 
         for j = 1:m
-            MOI.set(p.s_data.solver, MOI.VariablePrimalStart(), p.s_data.z[p.nlp.idx.u[t][j]], ut[j])
+            MOI.set(p.solver_data.solver, MOI.VariablePrimalStart(), p.solver_data.variables[p.nlp.indices.actions[t][j]], ut[j])
         end
     end
 end
 
 function get_trajectory(p::ProblemData) 
-    return p.nlp.trajopt.x, p.nlp.trajopt.u[1:end-1]
+    return p.nlp.trajopt.states, p.nlp.trajopt.actions[1:end-1]
 end
 
 function solve!(p::ProblemData) 
-    MOI.optimize!(p.s_data.solver) 
+    MOI.optimize!(p.solver_data.solver) 
 end

@@ -13,8 +13,8 @@ T = 101
 
 # ## acrobot 
 num_state = 4 
-nu = 1 
-nw = 0 
+num_action = 1 
+num_parameter = 0 
 
 function acrobot(x, u, w)
     mass1 = 1.0  
@@ -80,7 +80,7 @@ function midpoint_implicit(y, x, u, w)
 end
 
 # ## model
-dt = Dynamics(midpoint_implicit, num_state, num_state, nu, nw=nw)
+dt = Dynamics(midpoint_implicit, num_state, num_state, num_action, num_parameter=num_parameter)
 dyn = [dt for t = 1:T-1] 
 
 # ## initialization
@@ -90,44 +90,44 @@ xT = [0.0; π; 0.0; 0.0]
 # ## objective 
 ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
 oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
-ct = Cost(ot, num_state, nu, nw)
-cT = Cost(oT, num_state, 0, nw)
+ct = Cost(ot, num_state, num_action, num_parameter)
+cT = Cost(oT, num_state, 0, num_parameter)
 obj = [[ct for t = 1:T-1]..., cT]
 
 # ## constraints
-bnd1 = Bound(num_state, nu, state_lower=x1, xu=x1)
-bndt = Bound(num_state, nu)
-bndT = Bound(num_state, 0, state_lower=xT, xu=xT)
-bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
+bnd1 = Bound(num_state, num_action, state_lower=x1, state_upper=x1)
+bndt = Bound(num_state, num_action)
+bndT = Bound(num_state, 0, state_lower=xT, state_upper=xT)
+bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
 cons = [Constraint() for t = 1:T]
 
 # ## problem 
-p = ProblemData(obj, dyn, cons, bnds, options=Options())
+p = ProblemData(obj, dyn, cons, bounds, options=Options())
 
-@variables z[1:p.nlp.num_var]
+@variables z[1:p.nlp.num_variables]
 
-function gen_con(z) 
+function general_constraint(z) 
     z[1:2] - z[end-1:end]
 end
 
-gc = gen_con(z)
+gc = general_constraint(z)
 jac = Symbolics.sparsejacobian(gc, z)
 gc_func = eval(Symbolics.build_function(gc, z)[2])
 gc_jac_func = eval(Symbolics.build_function(jac.nzval, z)[2])
 nc = length(gc) 
 nj = length(jac.nzval)
-sp_jac = [findnz(jac)[1:2]...]
+jacobian_sparsity = [findnz(jac)[1:2]...]
 if false
     @variables λ[1:nc]
     lag_con = dot(λ, gc) 
     hess = Symbolics.sparsehessian(lag_con, z)
     hess_func = eval(Symbolics.build_function(hess.nzval, z, λ)[2])
-    sp_hess = [findnz(hess)[1:2]...]
+    hessian_sparsity = [findnz(hess)[1:2]...]
     nh = length(hess.nzval)
 else 
     hess_func = Expr(:null) 
-    sp_hess = [Int[]]
+    hessian_sparsity = [Int[]]
     nh = 0
 end
 
@@ -135,7 +135,7 @@ end
 
 # ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)
-u_guess = [1.0 * randn(nu) for t = 1:T-1]
+u_guess = [1.0 * randn(num_action) for t = 1:T-1]
 
 initialize_states!(p, x_interpolation)
 initialize_controls!(p, u_guess)
