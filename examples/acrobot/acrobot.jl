@@ -12,7 +12,7 @@ using DirectTrajectoryOptimization
 T = 101 
 
 # ## acrobot 
-nx = 4 
+num_state = 4 
 nu = 1 
 nw = 0 
 
@@ -80,7 +80,7 @@ function midpoint_implicit(y, x, u, w)
 end
 
 # ## model
-dt = Dynamics(midpoint_implicit, nx, nx, nu, nw=nw)
+dt = Dynamics(midpoint_implicit, num_state, num_state, nu, nw=nw)
 dyn = [dt for t = 1:T-1] 
 
 # ## initialization
@@ -90,14 +90,14 @@ xT = [0.0; π; 0.0; 0.0]
 # ## objective 
 ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
 oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
-ct = Cost(ot, nx, nu, nw)
-cT = Cost(oT, nx, 0, nw)
+ct = Cost(ot, num_state, nu, nw)
+cT = Cost(oT, num_state, 0, nw)
 obj = [[ct for t = 1:T-1]..., cT]
 
 # ## constraints
-bnd1 = Bound(nx, nu, xl=x1, xu=x1)
-bndt = Bound(nx, nu)
-bndT = Bound(nx, 0, xl=xT, xu=xT)
+bnd1 = Bound(num_state, nu, state_lower=x1, xu=x1)
+bndt = Bound(num_state, nu)
+bndT = Bound(num_state, 0, state_lower=xT, xu=xT)
 bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
 cons = [Constraint() for t = 1:T]

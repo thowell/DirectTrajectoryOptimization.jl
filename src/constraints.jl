@@ -2,7 +2,7 @@ struct Constraint{T}
     val 
     jac 
     hess
-    nx::Int 
+    num_state::Int 
     nu::Int 
     nw::Int
     nc::Int
@@ -18,9 +18,9 @@ end
 
 Constraints{T} = Vector{Constraint{T}} where T
 
-function Constraint(f::Function, nx::Int, nu::Int, nw::Int; idx_ineq=collect(1:0), eval_hess=false)
+function Constraint(f::Function, num_state::Int, nu::Int, nw::Int; idx_ineq=collect(1:0), eval_hess=false)
     #TODO: option to load/save methods
-    @variables x[1:nx], u[1:nu], w[1:nw]
+    @variables x[1:num_state], u[1:nu], w[1:nw]
     val = f(x, u, w)
     jac = Symbolics.sparsejacobian(val, [x; u])
     val_func = eval(Symbolics.build_function(val, x, u, w)[2])
@@ -41,7 +41,7 @@ function Constraint(f::Function, nx::Int, nu::Int, nw::Int; idx_ineq=collect(1:0
         nh = 0
     end
     return Constraint(val_func, jac_func, hess_func,
-        nx, nu, nw, nc, nj, nh, sp_jac, sp_hess, zeros(nc), zeros(nj), zeros(nh), idx_ineq)
+        num_state, nu, nw, nc, nj, nh, sp_jac, sp_hess, zeros(nc), zeros(nj), zeros(nh), idx_ineq)
 end
 
 function Constraint()
@@ -75,11 +75,11 @@ function eval_hess_lag!(h, idx, cons::Constraints{T}, x, u, w, λ) where T
     end
 end
 
-function sparsity_jacobian(cons::Constraints{T}, nx::Vector{Int}, nu::Vector{Int}; row_shift=0) where T
+function sparsity_jacobian(cons::Constraints{T}, num_state::Vector{Int}, nu::Vector{Int}; row_shift=0) where T
     row = Int[]
     col = Int[]
     for (t, con) in enumerate(cons)
-        col_shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+        col_shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(nu[1:t-1])) : 0)
         push!(row, (con.sp_jac[1] .+ row_shift)...) 
         push!(col, (con.sp_jac[2] .+ col_shift)...) 
         row_shift += con.nc
@@ -87,12 +87,12 @@ function sparsity_jacobian(cons::Constraints{T}, nx::Vector{Int}, nu::Vector{Int
     return collect(zip(row, col))
 end
 
-function sparsity_hessian(cons::Constraints{T}, nx::Vector{Int}, nu::Vector{Int}) where T
+function sparsity_hessian(cons::Constraints{T}, num_state::Vector{Int}, nu::Vector{Int}) where T
     row = Int[]
     col = Int[]
     for (t, con) in enumerate(cons)
         if !isempty(con.sp_hess[1])
-            shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+            shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(nu[1:t-1])) : 0)
             push!(row, (con.sp_hess[1] .+ shift)...) 
             push!(col, (con.sp_hess[2] .+ shift)...) 
         end
@@ -121,13 +121,13 @@ function jacobian_indices(cons::Constraints{T}; shift=0) where T
     return idx
 end
 
-function hessian_indices(cons::Constraints{T}, key::Vector{Tuple{Int,Int}}, nx::Vector{Int}, nu::Vector{Int}) where T
+function hessian_indices(cons::Constraints{T}, key::Vector{Tuple{Int,Int}}, num_state::Vector{Int}, nu::Vector{Int}) where T
     idx = Vector{Int}[]
     for (t, con) in enumerate(cons) 
         if !isempty(con.sp_hess[1])
             row = Int[]
             col = Int[]
-            shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+            shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(nu[1:t-1])) : 0)
             push!(row, (con.sp_hess[1] .+ shift)...) 
             push!(col, (con.sp_hess[2] .+ shift)...) 
             rc = collect(zip(row, col))

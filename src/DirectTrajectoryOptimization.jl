@@ -8,7 +8,7 @@ using Ipopt
 using MathOptInterface
 const MOI = MathOptInterface
 
-include("objective.jl")
+include("costs.jl")
 include("constraints.jl")
 include("bounds.jl")
 include("general_constraint.jl")

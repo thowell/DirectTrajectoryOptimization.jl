@@ -1,13 +1,16 @@
 struct Bound{T}
-    xl::Vector{T} 
-    xu::Vector{T}
-    ul::Vector{T}
-    uu::Vector{T}
+    state_lower::Vector{T} 
+    state_upper::Vector{T}
+    action_lower::Vector{T}
+    action_upper::Vector{T}
 end
 
-function Bound(nx::Int=0, nu::Int=0; 
-    xl=-Inf * ones(nx), xu=Inf * ones(nx), ul=-Inf * ones(nu), uu=Inf * ones(nu)) 
-    return Bound(xl, xu, ul, uu)
+function Bound(num_state::Int=0, num_action::Int=0; 
+    state_lower=-Inf * ones(num_state), 
+    state_upper=Inf * ones(num_state), 
+    action_lower=-Inf * ones(num_action), 
+    action_upper=Inf * ones(num_action)) 
+    return Bound(state_lower, state_upper, action_lower, action_upper)
 end
 
 const Bounds{T} = Vector{Bound{T}}

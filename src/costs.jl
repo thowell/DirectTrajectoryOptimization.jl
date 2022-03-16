@@ -9,9 +9,9 @@ struct Cost{T}
     hess_cache::Vector{T}
 end
 
-function Cost(f::Function, nx::Int, nu::Int, nw::Int; eval_hess=false)
+function Cost(f::Function, num_state::Int, nu::Int, nw::Int; eval_hess=false)
     #TODO: option to load/save methods
-    @variables x[1:nx], u[1:nu], w[1:nw]
+    @variables x[1:num_state], u[1:nu], w[1:nw]
     val = f(x, u, w)
     grad = Symbolics.gradient(val, [x; u])
     val_func = eval(Symbolics.build_function([val], x, u, w)[2])
@@ -28,7 +28,7 @@ function Cost(f::Function, nx::Int, nu::Int, nw::Int; eval_hess=false)
     end
 
     return Cost(val_func, grad_func, hess_func, sparsity,
-        zeros(1), zeros(nx + nu), zeros(nh))
+        zeros(1), zeros(num_state + nu), zeros(nh))
 end
 
 Objective{T} = Vector{Cost{T}} where T
@@ -60,12 +60,12 @@ function eval_obj_hess!(hess, idx, obj::Objective, x, u, w, σ)
     end
 end
 
-function sparsity_hessian(obj::Objective, nx::Vector{Int}, nu::Vector{Int})
+function sparsity_hessian(obj::Objective, num_state::Vector{Int}, nu::Vector{Int})
     row = Int[]
     col = Int[]
     for (t, cost) in enumerate(obj)
         if !isempty(cost.sp[1])
-            shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+            shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(nu[1:t-1])) : 0)
             push!(row, (cost.sp[1] .+ shift)...) 
             push!(col, (cost.sp[2] .+ shift)...) 
         end
@@ -73,13 +73,13 @@ function sparsity_hessian(obj::Objective, nx::Vector{Int}, nu::Vector{Int})
     return collect(zip(row, col))
 end
 
-function hessian_indices(obj::Objective, key::Vector{Tuple{Int,Int}}, nx::Vector{Int}, nu::Vector{Int})
+function hessian_indices(obj::Objective, key::Vector{Tuple{Int,Int}}, num_state::Vector{Int}, nu::Vector{Int})
     idx = Vector{Int}[]
     for (t, cost) in enumerate(obj)
         if !isempty(cost.sp[1])
             row = Int[]
             col = Int[]
-            shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+            shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(nu[1:t-1])) : 0)
             push!(row, (cost.sp[1] .+ shift)...) 
             push!(col, (cost.sp[2] .+ shift)...) 
             rc = collect(zip(row, col))

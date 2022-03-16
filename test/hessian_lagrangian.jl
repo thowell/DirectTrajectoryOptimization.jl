@@ -4,7 +4,7 @@
     T = 3
 
     # acrobot 
-    nx = 4 
+    num_state = 4 
     nu = 1 
     nw = 0 
     w_dim = [nw for t = 1:T]
@@ -83,7 +83,7 @@
         y - (x + h * acrobot(0.5 * (x + y), u, w))
     end
 
-    dt = Dynamics(midpoint_implicit, nx, nx, nu, nw=nw, eval_hess=true)
+    dt = Dynamics(midpoint_implicit, num_state, num_state, nu, nw=nw, eval_hess=true)
     dyn = [dt for t = 1:T-1] 
 
     # initial state 
@@ -95,20 +95,20 @@
     # objective 
     ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
-    objt = Cost(ot, nx, nu, nw, eval_hess=true)
-    objT = Cost(oT, nx, 0, nw, eval_hess=true)
+    objt = Cost(ot, num_state, nu, nw, eval_hess=true)
+    objT = Cost(oT, num_state, 0, nw, eval_hess=true)
     obj = [[objt for t = 1:T-1]..., objT]
 
     # constraints
-    bnd1 = Bound(nx, nu, xl=x1, xu=x1)
-    bndt = Bound(nx, nu)
-    bndT = Bound(nx, 0, xl=xT, xu=xT)
+    bnd1 = Bound(num_state, nu, state_lower=x1, xu=x1)
+    bndt = Bound(num_state, nu)
+    bndT = Bound(num_state, 0, state_lower=xT, xu=xT)
     bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-    ct = (x, u, w) -> [-5.0 * ones(nu) - cos.(u) .* sum(x.^2); cos.(x) .* tan.(u) - 5.0 * ones(nx)]
+    ct = (x, u, w) -> [-5.0 * ones(nu) - cos.(u) .* sum(x.^2); cos.(x) .* tan.(u) - 5.0 * ones(num_state)]
     cT = (x, u, w) -> sin.(x.^3.0)
-    cont = Constraint(ct, nx, nu, nw, idx_ineq=collect(1:(nu + nx)), eval_hess=true)
-    conT = Constraint(cT, nx, 0, nw, eval_hess=true)
+    cont = Constraint(ct, num_state, nu, nw, idx_ineq=collect(1:(nu + num_state)), eval_hess=true)
+    conT = Constraint(cT, num_state, 0, nw, eval_hess=true)
     cons = [[cont for t = 1:T-1]..., conT]
 
     # data 
@@ -118,17 +118,17 @@
 
     # Lagrangian
     function lagrangian(z) 
-        x1 = z[1:nx] 
-        u1 = z[nx .+ (1:nu)] 
-        x2 = z[nx + nu .+ (1:nx)] 
-        u2 = z[nx + nu + nx .+ (1:nu)] 
-        x3 = z[nx + nu + nx + nu .+ (1:nx)]
-        λ1_dyn = z[nx + nu + nx + nu + nx .+ (1:nx)] 
-        λ2_dyn = z[nx + nu + nx + nu + nx + nx .+ (1:nx)] 
+        x1 = z[1:num_state] 
+        u1 = z[num_state .+ (1:nu)] 
+        x2 = z[num_state + nu .+ (1:num_state)] 
+        u2 = z[num_state + nu + num_state .+ (1:nu)] 
+        x3 = z[num_state + nu + num_state + nu .+ (1:num_state)]
+        λ1_dyn = z[num_state + nu + num_state + nu + num_state .+ (1:num_state)] 
+        λ2_dyn = z[num_state + nu + num_state + nu + num_state + num_state .+ (1:num_state)] 
 
-        λ1_stage = z[nx + nu + nx + nu + nx + nx + nx .+ (1:(nu + nx))] 
-        λ2_stage = z[nx + nu + nx + nu + nx + nx + nx + nu + nx .+ (1:(nu + nx))] 
-        λ3_stage = z[nx + nu + nx + nu + nx + nx + nx + nu + nx + nu + nx .+ (1:nx)]
+        λ1_stage = z[num_state + nu + num_state + nu + num_state + num_state + num_state .+ (1:(nu + num_state))] 
+        λ2_stage = z[num_state + nu + num_state + nu + num_state + num_state + num_state + nu + num_state .+ (1:(nu + num_state))] 
+        λ3_stage = z[num_state + nu + num_state + nu + num_state + num_state + num_state + nu + num_state + nu + num_state .+ (1:num_state)]
 
         L = 0.0 
         L += ot(x1, u1, zeros(nw)) 
@@ -142,9 +142,9 @@
         return L
     end
 
-    nz = nx + nu + nx + nu + nx + nx + nx + nu + nx + nu + nx + nx
-    np = nx + nu + nx + nu + nx
-    nd = nx + nx + nu + nx + nu + nx + nx
+    nz = num_state + nu + num_state + nu + num_state + num_state + num_state + nu + num_state + nu + num_state + num_state
+    np = num_state + nu + num_state + nu + num_state
+    nd = num_state + num_state + nu + num_state + nu + num_state + num_state
     @variables z[1:nz]
     L = lagrangian(z)
     Lxx = Symbolics.hessian(L, z[1:np])

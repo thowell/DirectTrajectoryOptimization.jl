@@ -4,15 +4,15 @@ using InteractiveUtils
 
 # dimensions
 T = 26
-nx = 2
+num_state = 2
 nu = 1 
 nw = 0
 
 # objective
 ft = (x, u) -> dot(x, x) + 1.0e-1 * dot(u, u)
 fT = (x, u) -> 1.0 * dot(x, x)
-ct = Cost(ft, nx, nu, [t for t = 1:T-1])
-cT = Cost(fT, nx, 0, [T])
+ct = Cost(ft, num_state, nu, [t for t = 1:T-1])
+cT = Cost(fT, num_state, 0, [T])
 obj = [ct, cT]
 
 # model
@@ -29,15 +29,15 @@ function discrete_dynamics(y, x, u, w)
     y - (x + h * dynamics(y, u, w))
 end
 
-dt = Dynamics(discrete_dynamics, nx, nx, nu, nw=nw);
+dt = Dynamics(discrete_dynamics, num_state, num_state, nu, nw=nw);
 dyn = [dt for t = 1:T-1] 
 model = DynamicsModel(dyn)
 
 # constraints
 x1 = [0.0; 0.0]
 xT = [π; 0.0] 
-x_init = Bound(nx, nu, [1], xl=x1, xu=x1)
-x_goal = Bound(nx, 0, [T], xl=xT, xu=xT)
+x_init = Bound(num_state, nu, [1], state_lower=x1, xu=x1)
+x_goal = Bound(num_state, 0, [T], state_lower=xT, xu=xT)
 cons = ConstraintSet([x_init, x_goal], [StageConstraint()])
 
 # problem 

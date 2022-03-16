@@ -4,16 +4,16 @@ using InteractiveUtils
 
 # test 
 T = 26
-nx = 2
+num_state = 2
 nu = 1 
 nw = 0
 ft = (x, u) -> 1.0 * dot(x, x) + 0.1 * dot(u, u)
 fT = (x, u) -> 1.0 * dot(x, x)
-ct = Cost(ft, nx, nu, [t for t = 1:T-1])
-cT = Cost(fT, nx, 0, [T])
+ct = Cost(ft, num_state, nu, [t for t = 1:T-1])
+cT = Cost(fT, num_state, 0, [T])
 obj = [ct, cT]
 
-grad = zeros((T - 1) * (nx + nu) + nx)
+grad = zeros((T - 1) * (num_state + nu) + num_state)
 
 function dynamics(z, u, w) 
     mass = 1.0 
@@ -29,11 +29,11 @@ function discrete_dynamics(y, x, u, w)
     y - (x + h * dynamics(y, u, w))
 end
 
-dt = Dynamics(discrete_dynamics, nx, nx, nu, nw);
+dt = Dynamics(discrete_dynamics, num_state, num_state, nu, nw);
 dyn = [dt for t = 1:T-1] 
 model = DynamicsModel(dyn)
 
-nz = sum([t < T ? dyn[t].nx : dyn[t-1].ny for t = 1:T]) + sum([dyn[t].nu for t = 1:T-1])
+nz = sum([t < T ? dyn[t].num_state : dyn[t-1].ny for t = 1:T]) + sum([dyn[t].nu for t = 1:T-1])
 nc = num_con(dyn) 
 nj = num_jac(dyn)
 z = rand(nz)

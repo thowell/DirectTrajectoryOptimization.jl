@@ -1,13 +1,13 @@
 # dimensions 
-nx = 2#12 
+num_state = 2#12 
 nu = 1#4
 nw = 0
 
 # variables 
-@variables y[1:nx], x[1:nx], u[1:nu], w[1:nw]
+@variables y[1:num_state], x[1:num_state], u[1:nu], w[1:nw]
 
-y1 = ones(nx) 
-x1 = ones(nx) 
+y1 = ones(num_state) 
+x1 = ones(num_state) 
 u1 = ones(nu)
 w1 = ones(nw)
 
@@ -17,8 +17,8 @@ xuy1 = [x1; u1; y1]
 # objective 
 
 function objective(x, u)
-    Q = Diagonal(ones(nx)) 
-    q = ones(nx) 
+    Q = Diagonal(ones(num_state)) 
+    q = ones(num_state) 
 
     R = Diagonal(0.1 * ones(nu)) 
     r = zeros(nu)
@@ -73,9 +73,9 @@ fxuxu = eval(obj_xuxu_func[1])
 @benchmark fxuxu($x1, $u1)
 
 obj_1 = zeros(1)
-obj_x1 = zeros(nx) 
+obj_x1 = zeros(num_state) 
 obj_u1 = zeros(nu)
-obj_xu1 = zeros(nx + nu)
+obj_xu1 = zeros(num_state + nu)
 
 obj_xx1 = zeros(length(obj_xx_sp.nzval))
 obj_uu1 = zeros(length(obj_uu_sp.nzval))
@@ -247,11 +247,11 @@ dxuy = eval(dyn_xuy_func[1])
 dxuy_sp = eval(dyn_xuy_func_sp[1])
 @benchmark dxuy_sp($y1, $x1, $u1, $w1)
 
-dyn_1 = zeros(nx)
-dyn_y1 = zeros(nx, nx)
-dyn_x1 = zeros(nx, nx) 
-dyn_u1 = zeros(nx, nu)
-dyn_xuy1 = zeros(nx, nx + nx + nu)
+dyn_1 = zeros(num_state)
+dyn_y1 = zeros(num_state, num_state)
+dyn_x1 = zeros(num_state, num_state) 
+dyn_u1 = zeros(num_state, nu)
+dyn_xuy1 = zeros(num_state, num_state + num_state + nu)
 
 dyn_y1_sp = zeros(length(dyn_y_sp.nzval))
 dyn_x1_sp = zeros(length(dyn_x_sp.nzval)) 
@@ -286,7 +286,7 @@ dxuy_sp! = eval(dyn_xuy_func_sp[2])
 dxuy_sp!(dyn_xuy1_sp, y1, x1, u1, w1)
 dyn_xuy1_sp
 
-@variables λ[1:nx]
+@variables λ[1:num_state]
 dyn_λ = dot(λ, dyn)
 dyn_λ_xuy = Symbolics.hessian(dyn_λ, [x; u; y])
 dyn_λ_xuy_sp = Symbolics.sparsehessian(dyn_λ, [x; u; y])
@@ -294,8 +294,8 @@ dyn_λ_xuy_sp = Symbolics.sparsehessian(dyn_λ, [x; u; y])
 dyn_λ_xuy_func = Symbolics.build_function(dyn_λ_xuy, y, x, u, w, λ)
 dyn_λ_xuy_func_sp = Symbolics.build_function(dyn_λ_xuy_sp.nzval, y, x, u, w, λ)
 
-λ1 = ones(nx) 
-dyn_λ_xuy1 = zeros(nx + nx + nu, nx + nx + nu)
+λ1 = ones(num_state) 
+dyn_λ_xuy1 = zeros(num_state + num_state + nu, num_state + num_state + nu)
 dyn_λ_xuy1_sp = zeros(length(dyn_λ_xuy_sp.nzval))
 
 dλ_xuy! = eval(dyn_λ_xuy_func[2])
@@ -306,7 +306,7 @@ dλ_xuy_sp! = eval(dyn_λ_xuy_func_sp[2])
 
 # state constraint
 function state_constraint(x) 
-    x - ones(nx)
+    x - ones(num_state)
 end 
 
 # control constraint
@@ -322,18 +322,18 @@ end
 
 # indices 
 T = 10
-nx_dim = [nx for t = 1:T]
-nu_dim = [nu for t = 1:T-1] 
+state_dimensions = [num_state for t = 1:T]
+action_dimensions = [nu for t = 1:T-1] 
 nw_dim = [nw for t = 1:T-1]
-nxu_dim = [[nx + nu for t = 1:T-1]..., nx]
+state_action_dimensions = [[num_state + nu for t = 1:T-1]..., num_state]
 
-idx_x = [collect((t > 1 ? sum(nx_dim[1:t-1]) + sum(nu_dim[1:t-1]) : 0) .+ (1:nx_dim[t])) for t = 1:T] 
-idx_u = [collect((t > 1 ? sum(nx_dim[1:t-1]) + sum(nu_dim[1:t-1]) : 0) + nx_dim[t] .+ (1:nu_dim[t])) for t = 1:T-1]
-idx_xu = [collect((t > 1 ? sum(nx_dim[1:t-1]) + sum(nu_dim[1:t-1]) : 0) .+ (1:nx_dim[t] + nu_dim[t])) for t = 1:T-1] 
-idx_xuy = [collect((t > 1 ? sum(nx_dim[1:t-1]) + sum(nu_dim[1:t-1]) : 0) .+ (1:nx_dim[t] + nu_dim[t] + nx_dim[t+1])) for t = 1:T-1] 
+idx_x = [collect((t > 1 ? sum(state_dimensions[1:t-1]) + sum(action_dimensions[1:t-1]) : 0) .+ (1:state_dimensions[t])) for t = 1:T] 
+idx_u = [collect((t > 1 ? sum(state_dimensions[1:t-1]) + sum(action_dimensions[1:t-1]) : 0) + state_dimensions[t] .+ (1:action_dimensions[t])) for t = 1:T-1]
+idx_xu = [collect((t > 1 ? sum(state_dimensions[1:t-1]) + sum(action_dimensions[1:t-1]) : 0) .+ (1:state_dimensions[t] + action_dimensions[t])) for t = 1:T-1] 
+idx_xuy = [collect((t > 1 ? sum(state_dimensions[1:t-1]) + sum(action_dimensions[1:t-1]) : 0) .+ (1:state_dimensions[t] + action_dimensions[t] + state_dimensions[t+1])) for t = 1:T-1] 
 
 typeof(idx_x)
-num_var = sum(nx_dim) + sum(nu_dim)
+num_var = sum(state_dimensions) + sum(action_dimensions)
 z1 = randn(num_var)
 
 # objective
@@ -366,9 +366,9 @@ eval_obj_grad!(gradv, xv, uv, T)
 @benchmark eval_obj_grad!($gradv, $xv, $uv, $T)
 
 # discrete dynamics 
-nd_dim = nx_dim[2:T]
-num_con = sum(nx_dim[2:T])
-idx_dyn = [(t > 1 ? sum(nx_dim[1 .+ (1:t-1)]) : 0) .+ (1:nx_dim[t+1]) for t = 1:T-1]
+nd_dim = state_dimensions[2:T]
+num_con = sum(state_dimensions[2:T])
+idx_dyn = [(t > 1 ? sum(state_dimensions[1 .+ (1:t-1)]) : 0) .+ (1:state_dimensions[t+1]) for t = 1:T-1]
 con1 = zeros(num_con)
 conv = [con1[idx_dyn[t]] for t = 1:T-1]
 
@@ -405,7 +405,7 @@ eval_jac!(jacv, xv, uv, wv, T)
 
 I_jac, J_jac, V_jac = findnz(dyn_xuy_sp)
 
-function sparsity_jac(jac, nd_dim, nxu_dim, T;
+function sparsity_jac(jac, nd_dim, state_action_dimensions, T;
     row_shift = 0, col_shift = 0)
 
     row = Int[]
@@ -418,12 +418,12 @@ function sparsity_jac(jac, nd_dim, nxu_dim, T;
         push!(col, (J .+ col_shift)...) 
         
         row_shift += nd_dim[t]
-        col_shift += nxu_dim[t]
+        col_shift += state_action_dimensions[t]
     end
 
     return collect(zip(row, col))
 end
 
-sparsity_jac(dyn_xuy_sp, nd_dim, nxu_dim, T)
+sparsity_jac(dyn_xuy_sp, nd_dim, state_action_dimensions, T)
 
 

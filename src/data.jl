@@ -18,10 +18,10 @@ function TrajectoryOptimizationData(obj::Objective{T}, dyn::Vector{Dynamics{T}},
 
     x_dim, u_dim, w_dim = dimensions(dyn)
 
-    x = [zeros(nx) for nx in x_dim]
+    x = [zeros(num_state) for num_state in x_dim]
     u = [zeros(nu) for nu in u_dim]
 
-    λ_dyn = [zeros(nx) for nx in x_dim[2:end]]
+    λ_dyn = [zeros(num_state) for num_state in x_dim[2:end]]
     λ_stage = [zeros(con.nc) for con in cons]
    
     TrajectoryOptimizationData(x, u, w, obj, dyn, cons, bnds, λ_dyn, λ_stage, x_dim, u_dim, w_dim)
@@ -47,7 +47,7 @@ struct TrajectoryOptimizationIndices
 end
 
 function indices(obj::Objective{T}, dyn::Vector{Dynamics{T}}, cons::Constraints{T}, gc::GeneralConstraint{T},
-     key::Vector{Tuple{Int,Int}}, nx::Vector{Int}, nu::Vector{Int}, nz::Int) where T 
+     key::Vector{Tuple{Int,Int}}, num_state::Vector{Int}, nu::Vector{Int}, nz::Int) where T 
     # Jacobians
     dyn_con = constraint_indices(dyn, shift=0)
     dyn_jac = jacobian_indices(dyn, shift=0)
@@ -57,9 +57,9 @@ function indices(obj::Objective{T}, dyn::Vector{Dynamics{T}}, cons::Constraints{
     gen_jac = jacobian_indices(gc, shift=(num_jac(dyn) + num_jac(cons))) 
 
     # Hessian of Lagrangian 
-    obj_hess = hessian_indices(obj, key, nx, nu)
-    dyn_hess = hessian_indices(dyn, key, nx, nu)
-    stage_hess = hessian_indices(cons, key, nx, nu)
+    obj_hess = hessian_indices(obj, key, num_state, nu)
+    dyn_hess = hessian_indices(dyn, key, num_state, nu)
+    stage_hess = hessian_indices(cons, key, num_state, nu)
     gen_hess = hessian_indices(gc, key, nz)
 
     # indices
@@ -96,7 +96,7 @@ end
 function primal_bounds(bnds::Bounds{T}, nz::Int, x_idx::Vector{Vector{Int}}, u_idx::Vector{Vector{Int}}) where T 
     zl, zu = -Inf * ones(nz), Inf * ones(nz) 
     for (t, bnd) in enumerate(bnds)
-        length(bnd.xl) > 0 && (zl[x_idx[t]] = bnd.xl)
+        length(bnd.state_lower) > 0 && (zl[x_idx[t]] = bnd.state_lower)
         length(bnd.xu) > 0 && (zu[x_idx[t]] = bnd.xu)
         length(bnd.ul) > 0 && (zl[u_idx[t]] = bnd.ul)
         length(bnd.uu) > 0 && (zu[u_idx[t]] = bnd.uu)

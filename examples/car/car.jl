@@ -12,7 +12,7 @@ using Plots
 T = 51 
 
 # ## car 
-nx = 3
+num_state = 3
 nu = 2
 nw = 0 
 
@@ -26,7 +26,7 @@ function midpoint_implicit(y, x, u, w)
 end
 
 # ## model
-dt = Dynamics(midpoint_implicit, nx, nx, nu, nw=nw)
+dt = Dynamics(midpoint_implicit, num_state, num_state, nu, nw=nw)
 dyn = [dt for t = 1:T-1] 
 
 # ## initialization
@@ -36,16 +36,16 @@ xT = [1.0; 1.0; 0.0]
 # ## objective 
 ot = (x, u, w) -> 0.0 * dot(x - xT, x - xT) + 1.0 * dot(u, u)
 oT = (x, u, w) -> 0.0 * dot(x - xT, x - xT)
-ct = Cost(ot, nx, nu, nw)
-cT = Cost(oT, nx, 0, nw)
+ct = Cost(ot, num_state, nu, nw)
+cT = Cost(oT, num_state, 0, nw)
 obj = [[ct for t = 1:T-1]..., cT]
 
 # ## constraints
 ul = -0.5 * ones(nu) 
 uu = 0.5 * ones(nu)
-bnd1 = Bound(nx, nu, xl=x1, xu=x1, ul=ul, uu=uu)
-bndt = Bound(nx, nu, ul=ul, uu=uu)
-bndT = Bound(nx, 0, xl=xT, xu=xT)
+bnd1 = Bound(num_state, nu, state_lower=x1, xu=x1, ul=ul, uu=uu)
+bndt = Bound(num_state, nu, ul=ul, uu=uu)
+bndT = Bound(num_state, 0, state_lower=xT, xu=xT)
 bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
 p_obs = [0.5; 0.5] 
@@ -55,8 +55,8 @@ function obs(x, u, w)
     return [r_obs^2.0 - dot(e, e)]
 end
 
-cont = Constraint(obs, nx, nu, nw, idx_ineq=collect(1:1))
-conT = Constraint(obs, nx, 0, nw, idx_ineq=collect(1:1))
+cont = Constraint(obs, num_state, nu, nw, idx_ineq=collect(1:1))
+conT = Constraint(obs, num_state, 0, nw, idx_ineq=collect(1:1))
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## problem 

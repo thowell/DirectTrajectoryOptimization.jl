@@ -1,4 +1,4 @@
-@with_kw mutable struct Options{T} 
+Base.@kwdef mutable struct Options{T} 
     # Ipopt settings: https://coin-or.github.io/Ipopt/OPTIONS.html#OPT_print_options_documentation
     tol::T = 1e-6
     s_max::T = 100.0

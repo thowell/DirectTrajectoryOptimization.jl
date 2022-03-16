@@ -3,7 +3,7 @@ struct Dynamics{T}
     jac
     hess
     ny::Int 
-    nx::Int 
+    num_state::Int 
     nu::Int
     nw::Int
     nj::Int
@@ -15,9 +15,9 @@ struct Dynamics{T}
     hess_cache::Vector{T}
 end
 
-function Dynamics(f::Function, ny::Int, nx::Int, nu::Int; nw::Int=0, eval_hess=false)
+function Dynamics(f::Function, ny::Int, num_state::Int, nu::Int; nw::Int=0, eval_hess=false)
     #TODO: option to load/save methods
-    @variables y[1:ny], x[1:nx], u[1:nu], w[1:nw] 
+    @variables y[1:ny], x[1:num_state], u[1:nu], w[1:nw] 
     val = f(y, x, u, w) 
     jac = Symbolics.sparsejacobian(val, [x; u; y]);
     val_func = eval(Symbolics.build_function(val, y, x, u, w)[2]);
@@ -37,13 +37,13 @@ function Dynamics(f::Function, ny::Int, nx::Int, nu::Int; nw::Int=0, eval_hess=f
         nh = 0
     end
   
-    return Dynamics(val_func, jac_func, hess_func, ny, nx, nu, nw, nj, nh,
+    return Dynamics(val_func, jac_func, hess_func, ny, num_state, nu, nw, nj, nh,
         sp_jac, sp_hess, zeros(ny), zeros(nj), zeros(nh))
 end
 
-function Dynamics(g::Function, gz::Function, ny::Int, nx::Int, nu::Int; nw::Int=0)  
+function Dynamics(g::Function, gz::Function, ny::Int, num_state::Int, nu::Int; nw::Int=0)  
     # jacobian function 
-    nz = nx + nu + ny
+    nz = num_state + nu + ny
     jac_func = (nj, y, x, u, w) -> gz(reshape(view(nj, :), ny, nz), y, x, u, w)
 
     # number of Jacobian elements
@@ -66,7 +66,7 @@ function Dynamics(g::Function, gz::Function, ny::Int, nx::Int, nu::Int; nw::Int=
     sp_hess = [Int[]]
     nh = 0
   
-    return Dynamics(g, jac_func, hess_func, ny, nx, nu, nw, nj, nh,
+    return Dynamics(g, jac_func, hess_func, ny, num_state, nu, nw, nj, nh,
         sp_jac, sp_hess, zeros(ny), zeros(nj), zeros(nh))
 end
 
@@ -96,11 +96,11 @@ function eval_hess_lag!(h, idx, cons::Vector{Dynamics{T}}, x, u, w, λ) where T
     end
 end
 
-function sparsity_jacobian(cons::Vector{Dynamics{T}}, nx::Vector{Int}, nu::Vector{Int}; row_shift=0) where T
+function sparsity_jacobian(cons::Vector{Dynamics{T}}, num_state::Vector{Int}, nu::Vector{Int}; row_shift=0) where T
     row = Int[]
     col = Int[]
     for (t, con) in enumerate(cons) 
-        col_shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+        col_shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(nu[1:t-1])) : 0)
         push!(row, (con.sp_jac[1] .+ row_shift)...) 
         push!(col, (con.sp_jac[2] .+ col_shift)...) 
         row_shift += con.ny
@@ -108,12 +108,12 @@ function sparsity_jacobian(cons::Vector{Dynamics{T}}, nx::Vector{Int}, nu::Vecto
     return collect(zip(row, col))
 end
 
-function sparsity_hessian(cons::Vector{Dynamics{T}}, nx::Vector{Int}, nu::Vector{Int}) where T
+function sparsity_hessian(cons::Vector{Dynamics{T}}, num_state::Vector{Int}, nu::Vector{Int}) where T
     row = Int[]
     col = Int[]
     for (t, con) in enumerate(cons) 
         if !isempty(con.sp_hess[1])
-            shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+            shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(nu[1:t-1])) : 0)
             push!(row, (con.sp_hess[1] .+ shift)...) 
             push!(col, (con.sp_hess[2] .+ shift)...) 
         end
@@ -122,7 +122,7 @@ function sparsity_hessian(cons::Vector{Dynamics{T}}, nx::Vector{Int}, nu::Vector
 end
 
 num_con(cons::Vector{Dynamics{T}}) where T = sum([con.ny for con in cons])
-num_xuy(cons::Vector{Dynamics{T}}) where T = sum([con.nx + con.nu for con in cons]) + cons[end].ny
+num_xuy(cons::Vector{Dynamics{T}}) where T = sum([con.num_state + con.nu for con in cons]) + cons[end].ny
 num_jac(cons::Vector{Dynamics{T}}) where T = sum([con.nj for con in cons])
 
 function constraint_indices(cons::Vector{Dynamics{T}}; shift=0) where T
@@ -133,11 +133,11 @@ function jacobian_indices(cons::Vector{Dynamics{T}}; shift=0) where T
     [collect(shift + (t > 1 ? sum([cons[s].nj for s = 1:(t-1)]) : 0) .+ (1:cons[t].nj)) for t = 1:length(cons)]
 end
 
-function hessian_indices(cons::Vector{Dynamics{T}}, key::Vector{Tuple{Int,Int}}, nx::Vector{Int}, nu::Vector{Int}) where T
+function hessian_indices(cons::Vector{Dynamics{T}}, key::Vector{Tuple{Int,Int}}, num_state::Vector{Int}, nu::Vector{Int}) where T
     idx = Vector{Int}[]
     for (t, con) in enumerate(cons) 
         if !isempty(con.sp_hess[1])
-            shift = (t > 1 ? (sum(nx[1:t-1]) + sum(nu[1:t-1])) : 0)
+            shift = (t > 1 ? (sum(num_state[1:t-1]) + sum(nu[1:t-1])) : 0)
             row = collect(con.sp_hess[1] .+ shift)
             col = collect(con.sp_hess[2] .+ shift)
             rc = collect(zip(row, col))
@@ -148,25 +148,25 @@ function hessian_indices(cons::Vector{Dynamics{T}}, key::Vector{Tuple{Int,Int}},
 end
 
 function x_indices(cons::Vector{Dynamics{T}}) where T 
-    [[collect((t > 1 ? sum([cons[s].nx + cons[s].nu for s = 1:(t-1)]) : 0) .+ (1:cons[t].nx)) for t = 1:length(cons)]..., 
-        collect(sum([cons[s].nx + cons[s].nu for s = 1:length(cons)]) .+ (1:cons[end].ny))]
+    [[collect((t > 1 ? sum([cons[s].num_state + cons[s].nu for s = 1:(t-1)]) : 0) .+ (1:cons[t].num_state)) for t = 1:length(cons)]..., 
+        collect(sum([cons[s].num_state + cons[s].nu for s = 1:length(cons)]) .+ (1:cons[end].ny))]
 end
 
 function u_indices(cons::Vector{Dynamics{T}}) where T 
-    [collect((t > 1 ? sum([cons[s].nx + cons[s].nu for s = 1:(t-1)]) : 0) + cons[t].nx .+ (1:cons[t].nu)) for t = 1:length(cons)]
+    [collect((t > 1 ? sum([cons[s].num_state + cons[s].nu for s = 1:(t-1)]) : 0) + cons[t].num_state .+ (1:cons[t].nu)) for t = 1:length(cons)]
 end
 
 function xu_indices(cons::Vector{Dynamics{T}}) where T 
-    [[collect((t > 1 ? sum([cons[s].nx + cons[s].nu for s = 1:(t-1)]) : 0) .+ (1:(+ cons[t].nx + cons[t].nu))) for t = 1:length(cons)]..., 
-        collect(sum([cons[s].nx + cons[s].nu for s = 1:length(cons)]) .+ (1:cons[end].ny))]
+    [[collect((t > 1 ? sum([cons[s].num_state + cons[s].nu for s = 1:(t-1)]) : 0) .+ (1:(+ cons[t].num_state + cons[t].nu))) for t = 1:length(cons)]..., 
+        collect(sum([cons[s].num_state + cons[s].nu for s = 1:length(cons)]) .+ (1:cons[end].ny))]
 end
 
 function xuy_indices(cons::Vector{Dynamics{T}}) where T 
-    [collect((t > 1 ? sum([cons[s].nx + cons[s].nu for s = 1:(t-1)]) : 0) .+ (1:(+ cons[t].nx + cons[t].nu + cons[t].ny))) for t = 1:length(cons)]
+    [collect((t > 1 ? sum([cons[s].num_state + cons[s].nu for s = 1:(t-1)]) : 0) .+ (1:(+ cons[t].num_state + cons[t].nu + cons[t].ny))) for t = 1:length(cons)]
 end
 
 function dimensions(dyn::Vector{Dynamics{T}}; w=[0 for t = 1:(length(dyn) + 1)]) where T 
-    x = [[d.nx for d in dyn]..., dyn[end].ny]
+    x = [[d.num_state for d in dyn]..., dyn[end].ny]
     u = [[d.nu for d in dyn]..., 0]
     return x, u, w
 end
