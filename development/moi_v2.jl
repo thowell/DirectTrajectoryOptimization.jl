@@ -41,8 +41,7 @@ x_goal = Bound(num_state, 0, [T], state_lower=xT, xu=xT)
 cons = ConstraintSet([x_init, x_goal], [StageConstraint()])
 
 # problem 
-trajopt = TrajectoryOptimizationProblem(obj, model, cons)
-s = Solver(trajopt)
+s = solver(model, obj, cons)
 
 z = rand(s.p.num_variables)
 g = zeros(s.p.num_variables)

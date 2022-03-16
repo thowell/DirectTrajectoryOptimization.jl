@@ -13,7 +13,7 @@ T = 51
 
 # ## car 
 num_state = 3
-nu = 2
+num_action = 2
 num_parameter = 0 
 
 function car(x, u, w)
@@ -26,7 +26,7 @@ function midpoint_implicit(y, x, u, w)
 end
 
 # ## model
-dt = Dynamics(midpoint_implicit, num_state, num_state, nu, num_parameter=num_parameter)
+dt = Dynamics(midpoint_implicit, num_state, num_state, num_action, num_parameter=num_parameter)
 dyn = [dt for t = 1:T-1] 
 
 # ## initialization
@@ -36,15 +36,15 @@ xT = [1.0; 1.0; 0.0]
 # ## objective 
 ot = (x, u, w) -> 0.0 * dot(x - xT, x - xT) + 1.0 * dot(u, u)
 oT = (x, u, w) -> 0.0 * dot(x - xT, x - xT)
-ct = Cost(ot, num_state, nu, num_parameter)
-cT = Cost(oT, num_state, 0, num_parameter)
+ct = Cost(ot, num_state, num_action, num_parameter=num_parameter)
+cT = Cost(oT, num_state, 0, num_parameter=num_parameter)
 obj = [[ct for t = 1:T-1]..., cT]
 
 # ## constraints
-action_lower = -0.5 * ones(nu) 
-action_upper = 0.5 * ones(nu)
-bnd1 = Bound(num_state, nu, state_lower=x1, state_upper=x1, action_lower=action_lower, action_upper=action_upper)
-bndt = Bound(num_state, nu, action_lower=action_lower, action_upper=action_upper)
+action_lower = -0.5 * ones(num_action) 
+action_upper = 0.5 * ones(num_action)
+bnd1 = Bound(num_state, num_action, state_lower=x1, state_upper=x1, action_lower=action_lower, action_upper=action_upper)
+bndt = Bound(num_state, num_action, action_lower=action_lower, action_upper=action_upper)
 bndT = Bound(num_state, 0, state_lower=xT, state_upper=xT)
 bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
@@ -55,16 +55,16 @@ function obs(x, u, w)
     return [r_obs^2.0 - dot(e, e)]
 end
 
-cont = Constraint(obs, num_state, nu, num_parameter, indices_inequality=collect(1:1))
-conT = Constraint(obs, num_state, 0, num_parameter, indices_inequality=collect(1:1))
+cont = Constraint(obs, num_state, num_action, num_parameter=num_parameter, indices_inequality=collect(1:1))
+conT = Constraint(obs, num_state, 0, num_parameter=num_parameter, indices_inequality=collect(1:1))
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## problem 
-p = ProblemData(obj, dyn, cons, bounds, options=Options())
+p = Solver(dyn, obj, cons, bounds)
 
 # ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)
-u_guess = [0.001 * randn(nu) for t = 1:T-1]
+u_guess = [0.001 * randn(num_action) for t = 1:T-1]
 
 initialize_states!(p, x_interpolation)
 initialize_controls!(p, u_guess)

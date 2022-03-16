@@ -63,8 +63,8 @@ xT = [1.0; 0.0]
 # ## objective 
 ot = (x, u, w) -> 0.1 * dot(x, x) + 0.1 * dot(u, u)
 oT = (x, u, w) -> 0.1 * dot(x, x)
-ct = Cost(ot, num_state, num_action, num_parameter, [t for t = 1:T-1])
-cT = Cost(oT, num_state, 0, num_parameter, [T])
+ct = Cost(ot, num_state, num_action, num_parameter=num_parameter, [t for t = 1:T-1])
+cT = Cost(oT, num_state, 0, num_parameter=num_parameter, [T])
 obj = [ct, cT]
 
 # ## constraints
@@ -73,8 +73,7 @@ x_goal = Bound(num_state, 0, [T], state_lower=xT, state_upper=xT)
 cons = ConstraintSet([x_init, x_goal], [StageConstraint()])
 
 # ## problem 
-trajopt = TrajectoryOptimizationProblem(obj, model, cons)
-s = Solver(trajopt, options=Options())
+s = Solver(model, obj, cons, options=Options())
 
 # ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)

@@ -90,8 +90,8 @@ xT = [0.0; π; 0.0; 0.0]
 # ## objective 
 ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
 oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
-ct = Cost(ot, num_state, num_action, num_parameter)
-cT = Cost(oT, num_state, 0, num_parameter)
+ct = Cost(ot, num_state, num_action, num_parameter=num_parameter)
+cT = Cost(oT, num_state, 0, num_parameter=num_parameter)
 obj = [[ct for t = 1:T-1]..., cT]
 
 # ## constraints
@@ -103,35 +103,7 @@ bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 cons = [Constraint() for t = 1:T]
 
 # ## problem 
-p = ProblemData(obj, dyn, cons, bounds, options=Options())
-
-@variables z[1:p.nlp.num_variables]
-
-function general_constraint(z) 
-    z[1:2] - z[end-1:end]
-end
-
-gc = general_constraint(z)
-jac = Symbolics.sparsejacobian(gc, z)
-gc_func = eval(Symbolics.build_function(gc, z)[2])
-gc_jac_func = eval(Symbolics.build_function(jac.nzval, z)[2])
-nc = length(gc) 
-nj = length(jac.nzval)
-jacobian_sparsity = [findnz(jac)[1:2]...]
-if false
-    @variables λ[1:nc]
-    lag_con = dot(λ, gc) 
-    hess = Symbolics.sparsehessian(lag_con, z)
-    hess_func = eval(Symbolics.build_function(hess.nzval, z, λ)[2])
-    hessian_sparsity = [findnz(hess)[1:2]...]
-    nh = length(hess.nzval)
-else 
-    hess_func = Expr(:null) 
-    hessian_sparsity = [Int[]]
-    nh = 0
-end
-
-
+p = Solver(dyn, obj, cons, bounds, options=Options{Float64}())
 
 # ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)

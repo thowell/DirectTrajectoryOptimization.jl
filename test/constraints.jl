@@ -13,8 +13,8 @@
     ct = (x, u, w) -> [-ones(num_state) - x; x - ones(num_state)]
     cT = (x, u, w) -> x
 
-    cont = Constraint(ct, num_state, num_action, num_parameter, indices_inequality=collect(1:2num_state))
-    conT = Constraint(cT, num_state, 0, 0)
+    cont = Constraint(ct, num_state, num_action, num_parameter=num_parameter, indices_inequality=collect(1:2num_state))
+    conT = Constraint(cT, num_state, 0, num_parameter=0)
 
     cons = [[cont for t = 1:T-1]..., conT]
     nc = DTO.num_constraint(cons)

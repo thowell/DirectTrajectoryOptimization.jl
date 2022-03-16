@@ -8,7 +8,8 @@ struct Cost{T}
     hessian_cache::Vector{T}
 end
 
-function Cost(f::Function, num_state::Int, num_action::Int, num_parameter::Int; 
+function Cost(f::Function, num_state::Int, num_action::Int; 
+    num_parameter::Int=0,
     evaluate_hessian=false)
 
     #TODO: option to load/save methods

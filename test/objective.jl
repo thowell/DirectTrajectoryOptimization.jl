@@ -5,8 +5,8 @@
     num_parameter = 0
     ot = (x, u, w) -> dot(x, x) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 10.0 * dot(x, x)
-    ct = Cost(ot, num_state, num_action, num_parameter)
-    cT = Cost(oT, num_state, 0, num_parameter)
+    ct = Cost(ot, num_state, num_action, num_parameter=num_parameter)
+    cT = Cost(oT, num_state, 0, num_parameter=num_parameter)
     obj = [[ct for t = 1:T-1]..., cT]
 
     J = [0.0]

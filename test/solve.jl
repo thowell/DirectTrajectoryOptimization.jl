@@ -97,8 +97,8 @@
     # objective 
     ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
-    ct = Cost(ot, num_state, num_action, num_parameter)
-    cT = Cost(oT, num_state, 0, num_parameter)
+    ct = Cost(ot, num_state, num_action, num_parameter=num_parameter)
+    cT = Cost(oT, num_state, 0, num_parameter=num_parameter)
     obj = [[ct for t = 1:T-1]..., cT]
 
     # constraints
@@ -109,9 +109,8 @@
 
     cons = [Constraint() for t = 1:T]
 
-
     # problem 
-    p = ProblemData(obj, dyn, cons, bounds)
+    p = Solver(dyn, obj, cons, bounds)
 
     # initialize
     initialize_states!(p, x_interpolation)
@@ -179,8 +178,8 @@ end
     # ## objective 
     ot = (x, u, w) -> 0.1 * dot(x, x) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x, x)
-    ct = Cost(ot, num_state, num_action, num_parameter)
-    cT = Cost(oT, num_state, 0, num_parameter)
+    ct = Cost(ot, num_state, num_action, num_parameter=num_parameter)
+    cT = Cost(oT, num_state, 0, num_parameter=num_parameter)
     obj = [[ct for t = 1:T-1]..., cT]
 
     # ## constraints
@@ -196,8 +195,7 @@ end
     cons = [Constraint() for t = 1:T]
 
     # ## problem 
-    p = ProblemData(obj, dyn, cons, bounds, 
-        options=Options())
+    p = Solver(dyn, obj, cons, bounds)
 
     # ## initialize
     x_interpolation = linear_interpolation(x1, xT, T)
@@ -245,9 +243,9 @@ end
     # ## objective 
     ot = (x, u, w) -> 0.1 * dot(x, x) + 0.1 * dot(u, u)
     oT = (x, u, w) -> 0.1 * dot(x, x)
-    ct = Cost(ot, num_state, num_action, num_parameter, 
+    ct = Cost(ot, num_state, num_action, num_parameter=num_parameter, 
         evaluate_hessian=evaluate_hessian)
-    cT = Cost(oT, num_state, 0, num_parameter, 
+    cT = Cost(oT, num_state, 0, num_parameter=num_parameter, 
         evaluate_hessian=evaluate_hessian)
     obj = [[ct for t = 1:T-1]..., cT]
 
@@ -265,7 +263,7 @@ end
         evaluate_hessian=true)
 
     # ## problem 
-    p = ProblemData(obj, dyn, cons, bounds, 
+    p = Solver(dyn, obj, cons, bounds, 
         general_constraint=gc,
         evaluate_hessian=true,
         options=Options())

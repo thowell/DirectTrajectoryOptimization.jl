@@ -18,7 +18,8 @@ end
 
 Constraints{T} = Vector{Constraint{T}} where T
 
-function Constraint(f::Function, num_state::Int, num_action::Int, num_parameter::Int; 
+function Constraint(f::Function, num_state::Int, num_action::Int; 
+    num_parameter::Int=0,
     indices_inequality=collect(1:0), 
     evaluate_hessian=false)
 
@@ -43,6 +44,7 @@ function Constraint(f::Function, num_state::Int, num_action::Int, num_parameter:
         hessian_sparsity = [Int[]]
         num_hessian = 0
     end
+    
     return Constraint(
         evaluate_func, 
         jac_func, 
