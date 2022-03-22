@@ -42,6 +42,17 @@ function acrobot(x, u, w)
        return [a b; b c]
     end
 
+    function Minv(x, w)
+        a = (inertia1 + inertia2 + mass2 * length1 * length1
+            + 2.0 * mass2 * length1 * lengthcom2 * cos(x[2]))
+
+        b = inertia2 + mass2 * length1 * lengthcom2 * cos(x[2])
+
+        c = inertia2
+
+        return 1.0 / (a * c - b * b) * [c -b; -b a]
+    end
+
     function τ(x, w)
         a = (-1.0 * mass1 * gravity * lengthcom1 * sin(x[1])
             - mass2 * gravity * (length1 * sin(x[1])
@@ -68,7 +79,7 @@ function acrobot(x, u, w)
     q = view(x, 1:2)
     v = view(x, 3:4)
 
-    qdd = M(q, w) \ (-1.0 * C(x, w) * v
+    qdd = Minv(q, w) * (-1.0 * C(x, w) * v
             + τ(q, w) + B(q, w) * u[1] - [friction1; friction2] .* v)
 
     return [x[3]; x[4]; qdd[1]; qdd[2]]
@@ -95,12 +106,17 @@ cT = Cost(oT, num_state, 0, num_parameter=num_parameter)
 obj = [[ct for t = 1:T-1]..., cT]
 
 # ## constraints
-bnd1 = Bound(num_state, num_action, state_lower=x1, state_upper=x1)
+bnd1 = Bound(num_state, num_action)
 bndt = Bound(num_state, num_action)
-bndT = Bound(num_state, 0, state_lower=xT, state_upper=xT)
+bndT = Bound(num_state, 0)
 bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-cons = [Constraint() for t = 1:T]
+cons = [
+        Constraint((x, u, w) -> x - x1, num_state, num_action), 
+        [Constraint() for t = 2:T-1]..., 
+        Constraint((x, u, w) -> x - xT, num_state, 0)
+       ]
+
 
 # ## problem 
 p = Solver(dyn, obj, cons, bounds, options=Options{Float64}())

@@ -116,7 +116,7 @@ function MOI.eval_hessian_lagrangian(nlp::MOI.AbstractNLPEvaluator, hessian, var
         nlp.duals_general)
 end
 
-MOI.features_available(nlp::MOI.AbstractNLPEvaluator) = nlp.hessian_lagrangian ? [:Grad, :jacobian, :hessian] : [:Grad, :jacobian]
+MOI.features_available(nlp::MOI.AbstractNLPEvaluator) = nlp.hessian_lagrangian ? [:Grad, :Jac, :Hess] : [:Grad, :Jac]
 MOI.initialize(nlp::MOI.AbstractNLPEvaluator, features) = nothing
 MOI.jacobian_structure(nlp::MOI.AbstractNLPEvaluator) = nlp.jacobian_sparsity
 MOI.hessian_lagrangian_structure(nlp::MOI.AbstractNLPEvaluator) = nlp.hessian_lagrangian_sparsity
