@@ -81,7 +81,7 @@ end
 
 # ## model
 dt = Dynamics(midpoint_implicit, num_state, num_state, num_action, num_parameter=num_parameter)
-dyn = [dt for t = 1:T-1] 
+dynamics = [dt for t = 1:T-1] 
 
 # ## initialization
 x1 = [0.0; 0.0; 0.0; 0.0] 
@@ -92,7 +92,7 @@ ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
 oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
 ct = Cost(ot, num_state, num_action, num_parameter=num_parameter)
 cT = Cost(oT, num_state, 0, num_parameter=num_parameter)
-obj = [[ct for t = 1:T-1]..., cT]
+objective = [[ct for t = 1:T-1]..., cT]
 
 # ## constraints
 bnd1 = Bound(num_state, num_action, state_lower=x1, state_upper=x1)
@@ -100,10 +100,10 @@ bndt = Bound(num_state, num_action)
 bndT = Bound(num_state, 0, state_lower=xT, state_upper=xT)
 bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-cons = [Constraint() for t = 1:T]
+constraints = [Constraint() for t = 1:T]
 
 # ## problem 
-p = Solver(dyn, obj, cons, bounds, options=Options{Float64}())
+p = Solver(dynamics, objective, constraints, bounds, options=Options{Float64}())
 
 # ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)

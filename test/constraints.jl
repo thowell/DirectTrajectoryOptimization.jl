@@ -16,27 +16,27 @@
     cont = Constraint(ct, num_state, num_action, num_parameter=num_parameter, indices_inequality=collect(1:2num_state))
     conT = Constraint(cT, num_state, 0, num_parameter=0)
 
-    cons = [[cont for t = 1:T-1]..., conT]
-    nc = DTO.num_constraint(cons)
-    nj = DTO.num_jacobian(cons)
-    idx_c = DTO.constraint_indices(cons)
-    idx_j = DTO.jacobian_indices(cons)
+    constraints = [[cont for t = 1:T-1]..., conT]
+    nc = DTO.num_constraint(constraints)
+    nj = DTO.num_jacobian(constraints)
+    idx_c = DTO.constraint_indices(constraints)
+    idx_j = DTO.jacobian_indices(constraints)
     c = zeros(nc) 
     j = zeros(nj)
     cont.evaluate(c[idx_c[1]], x[1], u[1], w[1])
     conT.evaluate(c[idx_c[T]], x[T], u[T], w[T])
 
-    DTO.constraints!(c, idx_c, cons, x, u, w)
-    # info = @benchmark DTO.constraints!($c, $idx_c, $cons, $x, $u, $w)
+    DTO.constraints!(c, idx_c, constraints, x, u, w)
+    # info = @benchmark DTO.constraints!($c, $idx_c, $constraints, $x, $u, $w)
 
     @test norm(c - vcat([ct(x[t], u[t], w[t]) for t = 1:T-1]..., cT(x[T], u[T], w[T]))) < 1.0e-8
-    DTO.jacobian!(j, idx_j, cons, x, u, w)
-    # info = @benchmark DTO.jacobian!($j, $idx_j, $cons, $x, $u, $w)
+    DTO.jacobian!(j, idx_j, constraints, x, u, w)
+    # info = @benchmark DTO.jacobian!($j, $idx_j, $constraints, $x, $u, $w)
 
     dct = [-I zeros(num_state, num_action); I zeros(num_state, num_action)]
     dcT = Diagonal(ones(num_state))
     dc = cat([dct for t = 1:T-1]..., dcT, dims=(1,2))
-    sp = DTO.sparsity_jacobian(cons, dim_x, dim_u) 
+    sp = DTO.sparsity_jacobian(constraints, dim_x, dim_u) 
     j_dense = zeros(nc, sum(dim_x) + sum(dim_u)) 
     for (i, v) in enumerate(sp)
         j_dense[v[1], v[2]] = j[i]

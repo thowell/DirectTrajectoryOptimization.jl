@@ -83,7 +83,7 @@
     end
 
     dt = Dynamics(midpoint_implicit, num_state, num_state, num_action, num_parameter=num_parameter)
-    dyn = [dt for t = 1:T-1] 
+    dynamics = [dt for t = 1:T-1] 
 
     # initial state 
     x1 = [0.0; 0.0; 0.0; 0.0] 
@@ -99,7 +99,7 @@
     oT = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4])
     ct = Cost(ot, num_state, num_action, num_parameter=num_parameter)
     cT = Cost(oT, num_state, 0, num_parameter=num_parameter)
-    obj = [[ct for t = 1:T-1]..., cT]
+    objective = [[ct for t = 1:T-1]..., cT]
 
     # constraints
     bnd1 = Bound(num_state, num_action, state_lower=x1, state_upper=x1)
@@ -107,10 +107,10 @@
     bndT = Bound(num_state, 0, state_lower=xT, state_upper=xT)
     bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-    cons = [Constraint() for t = 1:T]
+    constraints = [Constraint() for t = 1:T]
 
     # problem 
-    p = Solver(dyn, obj, cons, bounds)
+    p = Solver(dynamics, objective, constraints, bounds)
 
     # initialize
     initialize_states!(p, x_interpolation)
@@ -169,7 +169,7 @@ end
 
     # ## model
     dt = Dynamics(di_func, diz_func, num_state, num_state, num_action)
-    dyn = [dt for t = 1:T-1] 
+    dynamics = [dt for t = 1:T-1] 
 
     # ## initialization
     x1 = [0.0; 0.0] 
@@ -180,7 +180,7 @@ end
     oT = (x, u, w) -> 0.1 * dot(x, x)
     ct = Cost(ot, num_state, num_action, num_parameter=num_parameter)
     cT = Cost(oT, num_state, 0, num_parameter=num_parameter)
-    obj = [[ct for t = 1:T-1]..., cT]
+    objective = [[ct for t = 1:T-1]..., cT]
 
     # ## constraints
     bnd1 = Bound(num_state, num_action, 
@@ -192,10 +192,10 @@ end
         state_upper=xT)
     bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-    cons = [Constraint() for t = 1:T]
+    constraints = [Constraint() for t = 1:T]
 
     # ## problem 
-    p = Solver(dyn, obj, cons, bounds)
+    p = Solver(dynamics, objective, constraints, bounds)
 
     # ## initialize
     x_interpolation = linear_interpolation(x1, xT, T)
@@ -233,8 +233,8 @@ end
 
     # ## model
     dt = Dynamics(double_integrator, num_state, num_state, num_action, evaluate_hessian=evaluate_hessian)
-    dyn = [dt for t = 1:T-1] 
-    dyn[1].hessian_cache
+    dynamics = [dt for t = 1:T-1] 
+    dynamics[1].hessian_cache
 
     # ## initialization
     x1 = [0.0; 0.0] 
@@ -247,7 +247,7 @@ end
         evaluate_hessian=evaluate_hessian)
     cT = Cost(oT, num_state, 0, num_parameter=num_parameter, 
         evaluate_hessian=evaluate_hessian)
-    obj = [[ct for t = 1:T-1]..., cT]
+    objective = [[ct for t = 1:T-1]..., cT]
 
     # ## constraints
     bnd1 = Bound(num_state, num_action, 
@@ -257,13 +257,13 @@ end
     bndT = Bound(num_state, 0)#, state_lower=xT, state_upper=xT)
     bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-    cons = [Constraint() for t = 1:T]
+    constraints = [Constraint() for t = 1:T]
 
     gc = GeneralConstraint((z, w) -> z[(end-1):end] - xT, num_state * T + num_action * (T-1), 0, 
         evaluate_hessian=true)
 
     # ## problem 
-    p = Solver(dyn, obj, cons, bounds, 
+    p = Solver(dynamics, objective, constraints, bounds, 
         general_constraint=gc,
         evaluate_hessian=true,
         options=Options())
