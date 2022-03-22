@@ -40,7 +40,18 @@
 
             c = inertia2
 
-        return [a b; b c]
+            return [a b; b c]
+        end
+
+        function Minv(x, w)
+            a = (inertia1 + inertia2 + mass2 * length1 * length1
+                + 2.0 * mass2 * length1 * lengthcom2 * cos(x[2]))
+    
+            b = inertia2 + mass2 * length1 * lengthcom2 * cos(x[2])
+    
+            c = inertia2
+    
+            return 1.0 / (a * c - b * b) * [c -b; -b a]
         end
 
         # dynamics bias
@@ -72,7 +83,7 @@
         q = view(x, 1:2)
         v = view(x, 3:4)
 
-        qdd = M(q, w) \ (-1.0 * C(x, w) * v
+        qdd = Minv(q, w) * (-1.0 * C(x, w) * v
                 + τ(q, w) + B(q, w) * u[1] - [friction1; friction2] .* v)
 
         return [x[3]; x[4]; qdd[1]; qdd[2]]
