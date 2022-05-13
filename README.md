@@ -7,10 +7,10 @@ A Julia package for solving constrained trajectory optimization problems:
 ```
 minimize        cost_T(state_T; parameter_T) + sum(cost_t(state_t, action_t; parameter_t))
 states, actions
-subject to      dynamics_t(state_t, action_t, state_t+1; wt),         t = 1,...,T-1 
-                constraint_t(state_t, action_t; parameter_t) {<,=} 0, t = 1,...,T
-                state_lower_t < state_t < state_upper_t,              t = 1,...,T 
-                action_lower_t < action_t < action_upper_t,           t = 1,...,T-1.
+subject to      dynamics_t(state_t, action_t, state_t+1; parameter_t),         t = 1,...,T-1 
+                constraint_t(state_t, action_t; parameter_t) {<,=} 0,          t = 1,...,T
+                state_lower_t < state_t < state_upper_t,                       t = 1,...,T 
+                action_lower_t < action_t < action_upper_t,                    t = 1,...,T-1.
 ```
 
 with direct trajectory optimization. 
