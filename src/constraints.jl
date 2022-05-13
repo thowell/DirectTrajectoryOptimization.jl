@@ -175,6 +175,8 @@ function hessian_indices(constraints::Constraints{T}, key::Vector{Tuple{Int,Int}
             push!(col, (con.hessian_sparsity[2] .+ shift)...) 
             rc = collect(zip(row, col))
             push!(indices, [findfirst(x -> x == i, key) for i in rc])
+        else 
+            push!(indices, Int[])
         end
     end
     return indices

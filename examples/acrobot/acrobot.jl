@@ -91,7 +91,7 @@ function midpoint_implicit(y, x, u, w)
 end
 
 # ## model
-dt = Dynamics(midpoint_implicit, num_state, num_state, num_action, num_parameter=num_parameter)
+dt = Dynamics(midpoint_implicit, num_state, num_state, num_action, num_parameter=num_parameter, evaluate_hessian=true)
 dynamics = [dt for t = 1:T-1] 
 
 # ## initialization
@@ -111,7 +111,7 @@ bndt = Bound(num_state, num_action)
 bndT = Bound(num_state, 0)
 bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-cons = [
+constraints = [
         Constraint((x, u, w) -> x - x1, num_state, num_action), 
         [Constraint() for t = 2:T-1]..., 
         Constraint((x, u, w) -> x - xT, num_state, 0)

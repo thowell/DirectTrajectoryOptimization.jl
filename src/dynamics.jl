@@ -178,6 +178,8 @@ function hessian_indices(constraints::Vector{Dynamics{T}}, key::Vector{Tuple{Int
             col = collect(con.hessian_sparsity[2] .+ shift)
             rc = collect(zip(row, col))
             push!(indices, [findfirst(x -> x == i, key) for i in rc])
+        else 
+            push!(indices, Int[])
         end
     end
     return indices

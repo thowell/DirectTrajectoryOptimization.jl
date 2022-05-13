@@ -96,6 +96,8 @@ function hessian_indices(objective::Objective, key::Vector{Tuple{Int,Int}}, num_
             push!(col, (cost.sparsity[2] .+ shift)...) 
             rc = collect(zip(row, col))
             push!(indices, [findfirst(x -> x == i, key) for i in rc])
+        else 
+            push!(indices, Int[])
         end
     end
     return indices
