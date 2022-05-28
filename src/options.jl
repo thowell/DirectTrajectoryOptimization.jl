@@ -25,7 +25,7 @@ Base.@kwdef mutable struct Options{T}
     print_user_options = "no"
     # print_options_documentation = "no"
     # print_timing_statistics = "no"
-    print_options_mode = "text"
+    # print_options_mode = "text"
     # print_advanced_options = "no"
     print_info_string = "no"
     inf_pr_output = "original"
