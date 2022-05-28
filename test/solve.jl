@@ -121,17 +121,17 @@
     constraints = [Constraint() for t = 1:T]
 
     # problem 
-    p = Solver(dynamics, objective, constraints, bounds)
+    solver = Solver(dynamics, objective, constraints, bounds)
 
     # initialize
-    initialize_states!(p, x_interpolation)
-    initialize_controls!(p, [randn(num_action) for t = 1:T-1])
+    initialize_states!(solver, x_interpolation)
+    initialize_controls!(solver, [randn(num_action) for t = 1:T-1])
 
     # solve
-    solve!(p)
+    solve!(solver)
 
     # solution 
-    x_sol, u_sol = get_trajectory(p) 
+    x_sol, u_sol = get_trajectory(solver) 
 
     @test norm(x_sol[1] - x1) < 1.0e-3
     @test norm(x_sol[T] - xT) < 1.0e-3
@@ -206,20 +206,20 @@ end
     constraints = [Constraint() for t = 1:T]
 
     # ## problem 
-    p = Solver(dynamics, objective, constraints, bounds)
+    solver = Solver(dynamics, objective, constraints, bounds)
 
     # ## initialize
     x_interpolation = linear_interpolation(x1, xT, T)
     u_guess = [1.0 * randn(num_action) for t = 1:T-1]
 
-    initialize_states!(p, x_interpolation)
-    initialize_controls!(p, u_guess)
+    initialize_states!(solver, x_interpolation)
+    initialize_controls!(solver, u_guess)
 
     # ## solve
-    solve!(p)
+    solve!(solver)
 
     # ## solution
-    x_sol, u_sol = get_trajectory(p)
+    x_sol, u_sol = get_trajectory(solver)
     @test norm(x_sol[1] - x1) < 1.0e-3
     @test norm(x_sol[T] - xT) < 1.0e-3
 end
@@ -274,7 +274,7 @@ end
         evaluate_hessian=true)
 
     # ## problem 
-    p = Solver(dynamics, objective, constraints, bounds, 
+    solver = Solver(dynamics, objective, constraints, bounds, 
         general_constraint=gc,
         evaluate_hessian=true,
         options=Options())
@@ -283,14 +283,14 @@ end
     x_interpolation = linear_interpolation(x1, xT, T)
     u_guess = [1.0 * randn(num_action) for t = 1:T-1]
 
-    initialize_states!(p, x_interpolation)
-    initialize_controls!(p, u_guess)
+    initialize_states!(solver, x_interpolation)
+    initialize_controls!(solver, u_guess)
 
     # ## solve
-    solve!(p)
+    solve!(solver)
 
     # ## solution
-    x_sol, u_sol = get_trajectory(p)
+    x_sol, u_sol = get_trajectory(solver)
     @test norm(x_sol[1] - x1) < 1.0e-3
     @test norm(x_sol[T] - xT) < 1.0e-3
 end

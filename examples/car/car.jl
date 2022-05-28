@@ -60,20 +60,20 @@ conT = Constraint(obs, num_state, 0, num_parameter=num_parameter, indices_inequa
 constraints = [[cont for t = 1:T-1]..., conT]
 
 # ## problem 
-p = Solver(dynamics, objective, constraints, bounds)
+solver = Solver(dynamics, objective, constraints, bounds)
 
 # ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)
 u_guess = [0.001 * randn(num_action) for t = 1:T-1]
 
-initialize_states!(p, x_interpolation)
-initialize_controls!(p, u_guess)
+initialize_states!(solver, x_interpolation)
+initialize_controls!(solver, u_guess)
 
 # ## solve
-solve!(p)
+solve!(solver)
 
 # ## solution
-x_sol, u_sol = get_trajectory(p)
+x_sol, u_sol = get_trajectory(solver)
 
 @show x_sol[1]
 @show x_sol[T]

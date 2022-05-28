@@ -95,7 +95,7 @@ cons = [
        ]
 
 # ## problem 
-p = Solver(dyn, obj, cons, bounds,
+solver = Solver(dyn, obj, cons, bounds,
     options=Options{Float64}())
 
 # ## initialize
@@ -105,14 +105,14 @@ for t = 1:T-1
     push!(x_rollout, rk3_explicit(x_rollout[end], u_guess[t], zeros(num_parameter)))
 end
 
-initialize_states!(p, x_rollout)
-initialize_controls!(p, u_guess)
+initialize_states!(solver, x_rollout)
+initialize_controls!(solver, u_guess)
 
 # ## solve
-@time solve!(p)
+@time solve!(solver)
 
 # ## solution
-x_sol, u_sol = get_trajectory(p)
+x_sol, u_sol = get_trajectory(solver)
 
 @show x_sol[1]
 @show x_sol[T]

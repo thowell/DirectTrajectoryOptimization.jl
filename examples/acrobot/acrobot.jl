@@ -111,7 +111,7 @@ bndt = Bound(num_state, num_action)
 bndT = Bound(num_state, 0)
 bounds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-cons = [
+constraints = [
         Constraint((x, u, w) -> x - x1, num_state, num_action), 
         [Constraint() for t = 2:T-1]..., 
         Constraint((x, u, w) -> x - xT, num_state, 0)
@@ -119,21 +119,21 @@ cons = [
 
 
 # ## problem 
-p = Solver(dynamics, objective, constraints, bounds, 
+solver = Solver(dynamics, objective, constraints, bounds, 
     options=Options{Float64}())
 
 # ## initialize
 x_interpolation = linear_interpolation(x1, xT, T)
 u_guess = [1.0 * randn(num_action) for t = 1:T-1]
 
-initialize_states!(p, x_interpolation)
-initialize_controls!(p, u_guess)
+initialize_states!(solver, x_interpolation)
+initialize_controls!(solver, u_guess)
 
 # ## solve
-@time solve!(p)
+@time solve!(solver)
 
 # ## solution
-x_sol, u_sol = get_trajectory(p)
+x_sol, u_sol = get_trajectory(solver)
 
 @show x_sol[1]
 @show x_sol[T]

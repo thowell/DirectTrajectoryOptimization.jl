@@ -1,7 +1,7 @@
 name = "DirectTrajectoryOptimization"
 uuid = "a9f42406-efe7-414c-8b71-df971cc98041"
 authors = ["thowell <thowell@stanford.edu>"]
-version = "0.2.0"
+version = "0.2.1"
 
 [deps]
 IfElse = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
@@ -15,8 +15,6 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 IfElse = "0.1"
-Ipopt = "0.8"
-MathOptInterface = "0.10"
 Parameters = "0.12"
 Scratch = "1.0"
 Symbolics = "0.1.29 - 0.1.32"
