@@ -91,12 +91,12 @@ function midpoint_implicit(y, x, u, w)
 end
 
 # ## model
-dt = Dynamics(midpoint_implicit, num_state, num_state, num_action, num_parameter=num_parameter)
+dt = Dynamics(midpoint_implicit, num_state, num_state, num_action, num_parameter=num_parameter, evaluate_hessian=true)
 dynamics = [dt for t = 1:T-1] 
 
 # ## initialization
 x1 = [0.0; 0.0; 0.0; 0.0] 
-xT = [0.0; π; 0.0; 0.0] 
+xT = [π; 0.0; 0.0; 0.0] 
 
 # ## objective 
 ot = (x, u, w) -> 0.1 * dot(x[3:4], x[3:4]) + 0.1 * dot(u, u)
